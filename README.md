@@ -2,18 +2,18 @@
 
 <div align="center">
 
-**基于 Rust + Tauri + React 构建的现代化 Windows C盘空间清理工具**
+**基于 Go + Wails + React 构建的现代化 Windows C盘空间清理工具**
 
-[![Tauri](https://img.shields.io/badge/Tauri-2.9-blue.svg)](https://tauri.app/)
-[![React](https://img.shields.io/badge/React-19.2-61dafb.svg)](https://reactjs.org/)
-[![Rust](https://img.shields.io/badge/Rust-Latest-orange.svg)](https://www.rust-lang.org/)
+[![Wails](https://img.shields.io/badge/Wails-v2-blue.svg)](https://wails.io/)
+[![Go](https://img.shields.io/badge/Go-1.21+-00ADD8.svg)](https://golang.org/)
+[![React](https://img.shields.io/badge/React-19-61dafb.svg)](https://reactjs.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 </div>
 
 ## ✨ 特性
 
-- 🚀 **高性能** - 基于 Rust 和 Tauri，体积小、速度快
+- 🚀 **高性能** - 基于 Go 和 Wails，原生性能，体积小
 - 🎨 **现代化 UI** - 使用 React + TailwindCSS 打造美观界面
 - 🔒 **安全可靠** - 不会误删重要文件，提供详细的清理预览
 - 📊 **智能分析** - 可视化展示磁盘占用情况
@@ -27,18 +27,23 @@
 
 ```
 CCooler/
-├── docs/                  # 开发文档
-│   ├── UI_DESIGN.md      # UI设计文档
-│   ├── TAURI_INTEGRATION.md  # Tauri集成指南
+├── docs/                 # 开发文档
+│   ├── UI_DESIGN.md     # UI设计文档
 │   └── ...
-└── ccooler-app/          # 主应用
-    ├── src/              # 前端源码
-    │   ├── components/   # React组件
-    │   ├── pages/        # 页面
-    │   └── ...
-    └── src-tauri/        # Rust后端
-        ├── src/          # Rust源码
-        └── Cargo.toml
+├── frontend/            # React 前端
+│   ├── src/
+│   │   ├── components/  # React组件
+│   │   ├── pages/       # 页面
+│   │   └── ...
+│   └── package.json
+├── backend/             # Go 后端
+│   ├── app.go          # 应用主逻辑
+│   ├── disk.go         # 磁盘操作
+│   ├── clean.go        # 清理功能
+│   └── ...
+├── main.go             # 入口文件
+├── wails.json          # Wails 配置
+└── go.mod
 ```
 
 ## 功能特性
@@ -65,70 +70,77 @@ CCooler/
 ## 技术栈
 
 ### 前端
-- React 18
+- React 19
 - TailwindCSS 4
 - Lucide React (图标)
-- Vite 7
+- Vite 6
 
-### 后端（待实现）
-- Rust
-- Tauri 1.5+
-- Serde (JSON序列化)
-- Windows API
+### 后端
+- Go 1.21+
+- Wails v2
+- Windows API (via Go)
+- 系统信息库
 
 ## 🚀 快速开始
 
 ### 环境要求
 
+- Go 1.21+
 - Node.js 18+
-- Rust 1.70+
+- Wails CLI v2
 - Windows 10/11
 
-### 安装依赖
+### 安装 Wails CLI
 
 ```bash
-cd ccooler-app
-npm install
+go install github.com/wailsapp/wails/v2/cmd/wails@latest
+```
+
+### 初始化项目
+
+```bash
+# 创建 Wails 项目（使用 React + Vite 模板）
+wails init -n CCooler -t react
+
+# 或手动配置现有项目
+wails init
 ```
 
 ### 开发模式
 
 ```bash
-# 仅前端开发（模拟数据）
-npm run dev
-
-# Tauri 开发模式（需要 Rust 环境）
-npm run tauri:dev
+# 启动开发服务器（热重载）
+wails dev
 ```
 
 ### 构建发布
 
 ```bash
-# 构建前端
-npm run build
+# 构建生产版本
+wails build
 
-# 构建 Tauri 应用
-npm run tauri:build
+# 构建时指定平台
+wails build -platform windows/amd64
 ```
 
 ## 📊 开发状态
 
 ✅ **已完成**
 - [x] UI设计与原型
-- [x] React 前端界面
-- [x] Tauri 框架集成
-- [x] 三大功能模块（清理/统计/迁移）
-- [x] 现代化 UI/UX
+- [x] 技术栈选型（迁移至 Wails）
 
 🚧 **进行中**
-- [ ] Rust 后端功能实现
-- [ ] Windows API 深度集成
+- [ ] Wails 项目初始化
+- [ ] React 前端开发
+- [ ] Go 后端功能实现
+- [ ] 三大功能模块（清理/统计/迁移）
+- [ ] Windows API 集成
 - [ ] 管理员权限处理
-- [ ] 性能优化
 
 📝 **计划中**
 - [ ] 自动更新功能
 - [ ] 多语言支持
+- [ ] 性能优化
 - [ ] 插件系统
 
 详细开发文档请查看 [docs](./docs/) 目录。
@@ -155,7 +167,8 @@ npm run tauri:build
 
 ## 🙏 致谢
 
-- [Tauri](https://tauri.app/) - 跨平台桌面应用框架
+- [Wails](https://wails.io/) - Go 桌面应用框架
+- [Go](https://golang.org/) - 后端语言
 - [React](https://reactjs.org/) - UI 框架
 - [TailwindCSS](https://tailwindcss.com/) - CSS 框架
 - [Lucide](https://lucide.dev/) - 图标库

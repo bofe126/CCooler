@@ -1,15 +1,23 @@
-# Dependencies
-node_modules/
-package-lock.json
-
-# Build outputs
-dist/
-dist-ssr/
+# Wails build outputs
 build/
+bin/
 
-# Tauri build outputs
-ccooler-app/src-tauri/target/
-ccooler-app/src-tauri/gen/
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+node_modules/
+dist/
 
 # Logs
 *.log
@@ -45,3 +53,7 @@ desktop.ini
 *.tmp
 *.temp
 .cache/
+
+# Wails
+.wails/
+wails_build_log.txt
