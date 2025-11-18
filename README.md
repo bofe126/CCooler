@@ -41,7 +41,28 @@ wails dev
 wails build
 ```
 
-详见 [docs/UI_DESIGN.md](docs/UI_DESIGN.md) 了解界面设计。
+## 📚 文档
+
+- [DEVELOPMENT.md](DEVELOPMENT.md) - 开发文档（构建、API、功能说明）
+- [UI_DESIGN.md](docs/UI_DESIGN.md) - 完整的界面设计文档
+
+## 📁 项目结构
+
+```
+CCooler/
+├── backend/              # Go 后端代码
+│   ├── models/          # 数据模型
+│   └── services/        # 业务服务
+├── frontend/            # React 前端代码
+│   └── src/
+│       ├── components/  # UI 组件
+│       ├── pages/       # 页面
+│       └── utils/       # 工具函数
+├── docs/                # 文档
+├── app.go               # Wails 应用主结构
+├── main.go              # Go 主程序入口
+└── wails.json           # Wails 配置
+```
 
 ## ⚠️ 注意事项
 

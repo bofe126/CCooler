@@ -57,3 +57,9 @@ desktop.ini
 # Wails
 .wails/
 wails_build_log.txt
+frontend/wailsjs/
+
+# Temporary files
+*.md5
+*.bak
+*.backup

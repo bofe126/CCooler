@@ -1,0 +1,23 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "CCooler",
+  "outputfilename": "CCooler",
+  "frontend:install": "npm install",
+  "frontend:build": "npm run build",
+  "frontend:dev:watcher": "npm run dev",
+  "frontend:dev:serverUrl": "http://localhost:3000",
+  "author": {
+    "name": "CCooler Team",
+    "email": "info@ccooler.com"
+  },
+  "info": {
+    "companyName": "CCooler",
+    "productName": "CCooler",
+    "productVersion": "0.1.0",
+    "copyright": "Copyright © 2025 CCooler Team",
+    "comments": "C盘清理工具"
+  },
+  "wailsjsdir": "./frontend",
+  "version": "2",
+  "outputType": "desktop"
+}
