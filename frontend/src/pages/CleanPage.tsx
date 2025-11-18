@@ -174,17 +174,21 @@ export default function CleanPage() {
               disabled
             />
 
-            <div className="mt-4 text-sm text-gray-600">
-              已扫描: {formatSize(getTotalCleanableSize())}
-            </div>
-
-            <div className="mt-6 flex items-center gap-4">
-              <button className="btn-secondary">
-                取消扫描
-              </button>
-              <button disabled className="btn-disabled">
-                立即清理
-              </button>
+            <div className="mt-4 flex items-center justify-between">
+              <div className="flex items-baseline gap-2">
+                <span className="text-sm text-gray-600">已扫描:</span>
+                <span className="text-2xl font-bold text-primary">{formatSize(getTotalCleanableSize())}</span>
+                <span className="text-sm text-gray-500">(已选中{getCheckedCount()}项)</span>
+              </div>
+              
+              <div className="flex items-center gap-3">
+                <button className="btn-secondary">
+                  取消扫描
+                </button>
+                <button disabled className="btn-disabled">
+                  立即清理
+                </button>
+              </div>
             </div>
           </>
         );
