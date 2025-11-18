@@ -12,6 +12,7 @@ declare global {
           GetInstalledSoftware(): Promise<any>;
           DetectWeChat(): Promise<any>;
           OpenWeChat(): Promise<void>;
+          OpenFolder(path: string): Promise<void>;
         };
       };
     };
@@ -104,6 +105,15 @@ export const WailsAPI = {
     }
     // 开发环境模拟
     console.log('Opening WeChat...');
+  },
+
+  // 打开文件夹
+  openFolder: async (path: string) => {
+    if (isWailsEnv()) {
+      return await window.go.main.App.OpenFolder(path);
+    }
+    // 开发环境模拟
+    console.log('Opening folder:', path);
   },
 };
 

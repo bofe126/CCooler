@@ -163,3 +163,8 @@ func (a *App) IsAdmin() bool {
 func (a *App) IsElevated() bool {
 	return a.adminService.IsElevated()
 }
+
+// OpenFolder 打开文件夹
+func (a *App) OpenFolder(path string) error {
+	return a.cleanService.OpenFolder(path)
+}

@@ -14,7 +14,7 @@ export default function CleanPage() {
     free: 105 * 1024 ** 3,  // 105 GB
   });
 
-  // 加载磁盘信息
+  // 加载磁盘信息并自动开始扫描
   useEffect(() => {
     const loadDiskInfo = async () => {
       try {
@@ -24,7 +24,22 @@ export default function CleanPage() {
         console.error('Failed to load disk info:', error);
       }
     };
+    
+    const autoScan = async () => {
+      // 自动开始扫描
+      setPageState('scanning');
+      try {
+        const items = await WailsAPI.scanCleanItems();
+        setCleanItems(items);
+        setPageState('scan-complete');
+      } catch (error) {
+        console.error('Auto scan failed:', error);
+        setPageState('initial');
+      }
+    };
+    
     loadDiskInfo();
+    autoScan();
   }, []);
 
   // 页面状态
@@ -35,13 +50,13 @@ export default function CleanPage() {
 
   // 清理项列表
   const [cleanItems, setCleanItems] = useState<CleanItem[]>([
-    { id: '1', name: '系统临时文件', size: 0, checked: true, safe: true, status: 'idle' },
-    { id: '2', name: '浏览器缓存', size: 0, checked: true, safe: true, status: 'idle' },
-    { id: '3', name: '回收站', size: 0, checked: true, safe: true, status: 'idle' },
-    { id: '4', name: 'Windows更新缓存', size: 0, checked: true, safe: true, status: 'idle' },
-    { id: '5', name: '系统文件清理', size: 0, checked: true, safe: true, status: 'idle' },
-    { id: '6', name: '下载目录', size: 0, checked: false, safe: false, status: 'idle' },
-    { id: '7', name: '应用缓存', size: 0, checked: false, safe: false, status: 'idle' },
+    { id: '1', name: '系统临时文件', size: 0, fileCount: 0, checked: true, safe: true, status: 'idle' },
+    { id: '2', name: '浏览器缓存', size: 0, fileCount: 0, checked: true, safe: true, status: 'idle' },
+    { id: '3', name: '回收站', size: 0, fileCount: 0, checked: true, safe: true, status: 'idle' },
+    { id: '4', name: 'Windows更新缓存', size: 0, fileCount: 0, checked: true, safe: true, status: 'idle' },
+    { id: '5', name: '系统文件清理', size: 0, fileCount: 0, checked: true, safe: true, status: 'idle' },
+    { id: '6', name: '下载目录', size: 0, fileCount: 0, checked: false, safe: false, status: 'idle' },
+    { id: '7', name: '应用缓存', size: 0, fileCount: 0, checked: false, safe: false, status: 'idle' },
   ]);
 
   // 切换清理项选中状态
@@ -149,7 +164,7 @@ export default function CleanPage() {
           <>
             <div className="mb-4 flex items-center gap-2 text-primary">
               <Search size={20} className="animate-pulse" />
-              <span className="font-medium">正在扫描... (模拟中)</span>
+              <span className="font-medium">正在扫描...</span>
             </div>
 
             <CleanItemList
@@ -188,24 +203,28 @@ export default function CleanPage() {
               onViewDetail={setSelectedItem}
             />
 
-            <div className="mt-4 text-sm text-gray-600">
-              可清理: {formatSize(getTotalCleanableSize())} (已选中{getCheckedCount()}项)
-            </div>
-
-            <div className="mt-6 flex items-center gap-4">
-              <button
-                onClick={handleStartScan}
-                className="btn-secondary"
-              >
-                重新扫描
-              </button>
-              <button
-                onClick={handleStartClean}
-                disabled={getTotalCleanableSize() === 0}
-                className={getTotalCleanableSize() > 0 ? 'btn-primary' : 'btn-disabled'}
-              >
-                立即清理
-              </button>
+            <div className="mt-4 flex items-center justify-between">
+              <div className="flex items-baseline gap-2">
+                <span className="text-sm text-gray-600">可清理:</span>
+                <span className="text-2xl font-bold text-primary">{formatSize(getTotalCleanableSize())}</span>
+                <span className="text-sm text-gray-500">(已选中{getCheckedCount()}项)</span>
+              </div>
+              
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleStartScan}
+                  className="btn-secondary"
+                >
+                  重新扫描
+                </button>
+                <button
+                  onClick={handleStartClean}
+                  disabled={getTotalCleanableSize() === 0}
+                  className={getTotalCleanableSize() > 0 ? 'btn-primary' : 'btn-disabled'}
+                >
+                  立即清理
+                </button>
+              </div>
             </div>
           </>
         );
@@ -215,7 +234,7 @@ export default function CleanPage() {
           <>
             <div className="mb-4 flex items-center gap-2 text-primary">
               <Trash2 size={20} className="animate-pulse" />
-              <span className="font-medium">🗑️ 正在清理... (模拟中)</span>
+              <span className="font-medium">🗑️ 正在清理...</span>
             </div>
 
             <div className="bg-white rounded-lg p-4 shadow-sm mb-4">

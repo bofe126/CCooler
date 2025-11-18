@@ -20,12 +20,12 @@ func main() {
 	err := wails.Run(&options.App{
 		Title:         "CCooler",
 		Width:         800,
-		Height:        600,
+		Height:        720,
 		MinWidth:      800,
 		MinHeight:     600,
-		MaxWidth:      800,
-		MaxHeight:     600,
-		DisableResize: true,
+		MaxWidth:      1200,
+		MaxHeight:     900,
+		DisableResize: false,
 		Frameless:     false,
 		AssetServer: &assetserver.Options{
 			Assets: assets,

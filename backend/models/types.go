@@ -1,14 +1,24 @@
 package models
 
+// PathDetail 路径详细信息
+type PathDetail struct {
+	Path        string `json:"path"`
+	Size        int64  `json:"size"`
+	FileCount   int    `json:"fileCount"`
+	FolderCount int    `json:"folderCount"`
+}
+
 // CleanItem 清理项
 type CleanItem struct {
-	ID      string `json:"id"`
-	Name    string `json:"name"`
-	Size    int64  `json:"size"`
-	Checked bool   `json:"checked"`
-	Safe    bool   `json:"safe"`
-	Status  string `json:"status"`
-	Error   string `json:"error,omitempty"`
+	ID        string       `json:"id"`
+	Name      string       `json:"name"`
+	Size      int64        `json:"size"`
+	FileCount int          `json:"fileCount"`
+	Checked   bool         `json:"checked"`
+	Safe      bool         `json:"safe"`
+	Status    string       `json:"status"`
+	Error     string       `json:"error,omitempty"`
+	Paths     []PathDetail `json:"paths,omitempty"`
 }
 
 // DiskInfo 磁盘信息
@@ -23,6 +33,7 @@ type SoftwareInfo struct {
 	Name string `json:"name"`
 	Path string `json:"path"`
 	Size int64  `json:"size"`
+	Icon string `json:"icon"` // 图标路径或base64
 }
 
 // WeChatData 微信数据

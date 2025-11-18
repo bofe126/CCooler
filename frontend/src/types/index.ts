@@ -1,12 +1,22 @@
+// 路径详细信息
+export interface PathDetail {
+  path: string;
+  size: number;
+  fileCount: number;
+  folderCount: number;
+}
+
 // 清理项类型
 export interface CleanItem {
   id: string;
   name: string;
   size: number; // 字节
+  fileCount: number; // 文件总数
   checked: boolean;
   safe: boolean; // 是否为安全清理项
   status: 'idle' | 'scanning' | 'scanned' | 'cleaning' | 'completed' | 'error';
   error?: string;
+  paths?: PathDetail[]; // 详细路径信息
 }
 
 // C盘清理页面状态
@@ -31,6 +41,7 @@ export interface SoftwareInfo {
   name: string;
   path: string;
   size: number; // 字节
+  icon?: string; // 图标路径或base64
 }
 
 // 软件统计页面状态

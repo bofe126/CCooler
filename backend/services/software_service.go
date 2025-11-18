@@ -57,10 +57,14 @@ func (s *SoftwareService) GetInstalledSoftware() ([]*models.SoftwareInfo, error)
 			// 计算软件大小
 			size := s.calculateDirectorySize(installLocation)
 
+			// 提取图标
+			icon := s.extractIcon(subKey, installLocation)
+
 			softwareList = append(softwareList, &models.SoftwareInfo{
 				Name: displayName,
 				Path: installLocation,
 				Size: size,
+				Icon: icon,
 			})
 
 			subKey.Close()
@@ -68,6 +72,14 @@ func (s *SoftwareService) GetInstalledSoftware() ([]*models.SoftwareInfo, error)
 	}
 
 	return softwareList, nil
+}
+
+// extractIcon 提取软件图标（返回图标标识）
+func (s *SoftwareService) extractIcon(key registry.Key, installPath string) string {
+	// 暂时返回空字符串，让前端使用首字母头像
+	// 完整的图标提取需要复杂的 Windows API 调用和图像处理
+	// 可以在后续版本中实现
+	return ""
 }
 
 // calculateDirectorySize 计算目录大小

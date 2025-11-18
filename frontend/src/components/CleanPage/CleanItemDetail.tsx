@@ -1,5 +1,6 @@
-import { X, AlertTriangle, CheckCircle, Lock } from 'lucide-react';
+import { X, AlertTriangle, CheckCircle, Lock, FolderOpen } from 'lucide-react';
 import type { CleanItem } from '@/types';
+import WailsAPI from '@/utils/wails';
 
 interface CleanItemDetailProps {
   item: CleanItem;
@@ -14,136 +15,29 @@ export default function CleanItemDetail({ item, onClose }: CleanItemDetailProps)
     return `${mb.toFixed(0)} MB`;
   };
 
+  // 打开文件夹
+  const handleOpenFolder = async (path: string) => {
+    try {
+      await WailsAPI.openFolder(path);
+    } catch (error) {
+      console.error('Failed to open folder:', error);
+      alert('无法打开文件夹: ' + path);
+    }
+  };
+
   // 根据清理项ID获取详细信息
   const getDetailInfo = () => {
-    switch (item.id) {
-      case '1': // 系统临时文件
-        return {
-          icon: '📁',
-          description: '系统和应用程序产生的临时文件，可以安全清理。',
-          stats: {
-            totalSize: item.size,
-            fileCount: 1245,
-            folderCount: 8,
-          },
-          paths: [
-            { path: 'C:\\Users\\...\\Temp', size: item.size * 0.65, files: 823 },
-            { path: 'C:\\Windows\\Temp', size: item.size * 0.35, files: 422 },
-          ],
-          warning: '此项为安全清理项，不会影响系统正常运行。',
-          warningLevel: 'safe',
-        };
-
-      case '2': // 浏览器缓存
-        return {
-          icon: '🌐',
-          description: '浏览器产生的缓存文件，包括网页缓存、Cookie等。',
-          stats: {
-            totalSize: item.size,
-            browserCount: 3,
-          },
-          browsers: [
-            { name: 'Google Chrome', icon: '🔵', cache: item.size * 0.48, cookies: item.size * 0.01 },
-            { name: 'Microsoft Edge', icon: '🔷', cache: item.size * 0.35, cookies: 0 },
-            { name: 'Firefox', icon: '🦊', cache: item.size * 0.16, cookies: 0 },
-          ],
-          warning: '清理前请关闭所有浏览器，否则可能清理失败。',
-          warningLevel: 'info',
-        };
-
-      case '3': // 回收站
-        return {
-          icon: '🗑️',
-          description: '清空回收站中的所有文件，释放磁盘空间。',
-          stats: {
-            totalSize: item.size,
-            fileCount: 2156,
-            folderCount: 89,
-          },
-          recentFiles: [
-            { name: '报告.docx', size: 45 * 1024 ** 2, deletedDays: 3 },
-            { name: '旧项目文件夹', size: 1.2 * 1024 ** 3, deletedDays: 7 },
-            { name: '图片合集', size: 856 * 1024 ** 2, deletedDays: 14 },
-          ],
-          warning: '清空后无法恢复，请确认回收站中无重要文件。',
-          warningLevel: 'warning',
-        };
-
-      case '4': // Windows更新缓存
-        return {
-          icon: '🔄',
-          description: 'Windows更新下载的临时文件，已安装的更新缓存。',
-          stats: {
-            totalSize: item.size,
-            updateCount: 15,
-          },
-          paths: [
-            { path: 'SoftwareDistribution', size: item.size * 0.9, description: 'C:\\Windows\\SoftwareDistribution\\Download' },
-            { path: 'Windows.old', size: item.size * 0.1, description: 'C:\\Windows.old' },
-          ],
-          requireAdmin: true,
-          warning: '清理后无法回退Windows更新，建议系统稳定后清理。',
-          warningLevel: 'warning',
-        };
-
-      case '5': // 系统文件清理
-        return {
-          icon: '🛠️',
-          description: '系统运行产生的各类临时文件和缓存，可安全清理。',
-          stats: {
-            totalSize: item.size,
-            categoryCount: 4,
-          },
-          categories: [
-            { name: 'Windows错误报告', icon: '🔴', size: item.size * 0.40, description: '系统崩溃和错误日志' },
-            { name: 'Defender扫描历史', icon: '🛡️', size: item.size * 0.31, description: '病毒扫描临时文件' },
-            { name: '缩略图缓存', icon: '🖼️', size: item.size * 0.21, description: '图片预览缓存' },
-            { name: '传递优化文件', icon: '📦', size: item.size * 0.08, description: 'Windows更新共享' },
-          ],
-          warning: '所有项目均可安全清理。',
-          warningLevel: 'safe',
-        };
-
-      case '6': // 下载目录
-        return {
-          icon: '⚠️',
-          description: '清空用户下载文件夹中的所有文件。',
-          stats: {
-            totalSize: item.size,
-            fileCount: 156,
-            folderCount: 12,
-          },
-          path: 'C:\\Users\\...\\Downloads',
-          topFiles: [
-            { name: '软件安装包.exe', size: 856 * 1024 ** 2, icon: '📦' },
-            { name: '工作文档.pdf', size: 12 * 1024 ** 2, icon: '📄' },
-            { name: '图片.jpg', size: 5 * 1024 ** 2, icon: '🖼️' },
-          ],
-          warning: '此操作将删除下载文件夹中的所有文件！请务必确认没有重要文件后再清理。',
-          warningLevel: 'danger',
-        };
-
-      case '7': // 应用缓存
-        return {
-          icon: '📱',
-          description: '各类应用程序产生的缓存文件，可以安全清理。',
-          stats: {
-            totalSize: item.size,
-            appCount: 8,
-          },
-          apps: [
-            { name: '微信缓存', icon: '💬', size: item.size * 0.37 },
-            { name: '网易云音乐缓存', icon: '🎵', size: item.size * 0.27 },
-            { name: '视频播放器缓存', icon: '📺', size: item.size * 0.21 },
-            { name: 'Steam缓存', icon: '🎮', size: item.size * 0.11 },
-          ],
-          warning: '清理后应用可能需要重新加载数据，不影响正常使用。',
-          warningLevel: 'info',
-        };
-
-      default:
-        return null;
-    }
+    const configs: Record<string, { icon: string; description: string; warning: string; warningLevel: string; requireAdmin?: boolean }> = {
+      '1': { icon: '📁', description: '系统和应用程序产生的临时文件，可以安全清理。', warning: '此项为安全清理项，不会影响系统正常运行。', warningLevel: 'safe' },
+      '2': { icon: '🌐', description: '浏览器产生的缓存文件，包括网页缓存、Cookie等。', warning: '清理前请关闭所有浏览器，否则可能清理失败。', warningLevel: 'info' },
+      '3': { icon: '🗑️', description: '清空回收站中的所有文件，释放磁盘空间。', warning: '清空后无法恢复，请确认回收站中无重要文件。', warningLevel: 'warning' },
+      '4': { icon: '🔄', description: 'Windows更新下载的临时文件，已安装的更新缓存。', warning: '清理后无法回退Windows更新，建议系统稳定后清理。', warningLevel: 'warning', requireAdmin: true },
+      '5': { icon: '🛠️', description: '系统运行产生的各类临时文件和缓存，可安全清理。', warning: '所有项目均可安全清理。', warningLevel: 'safe' },
+      '6': { icon: '⚠️', description: '清空用户下载文件夹中的所有文件。', warning: '此操作将删除下载文件夹中的所有文件！请务必确认没有重要文件后再清理。', warningLevel: 'danger' },
+      '7': { icon: '📱', description: '各类应用程序产生的缓存文件，可以安全清理。', warning: '清理后应用可能需要重新加载数据，不影响正常使用。', warningLevel: 'info' },
+    };
+    
+    return configs[item.id] || null;
   };
 
   const detail = getDetailInfo();
@@ -209,107 +103,29 @@ export default function CleanItemDetail({ item, onClose }: CleanItemDetailProps)
           <div>
             <h4 className="text-sm font-medium text-gray-700 mb-2">📊 统计信息</h4>
             <div className="space-y-1 text-sm text-gray-600">
-              <div>• 总大小: {formatSize(detail.stats.totalSize)}</div>
-              {detail.stats.fileCount && <div>• 文件数: {detail.stats.fileCount.toLocaleString()} 个</div>}
-              {detail.stats.folderCount && <div>• 文件夹数: {detail.stats.folderCount} 个</div>}
-              {detail.stats.browserCount && <div>• 浏览器数: {detail.stats.browserCount} 个</div>}
-              {detail.stats.updateCount && <div>• 更新包数: {detail.stats.updateCount} 个</div>}
-              {detail.stats.categoryCount && <div>• 项目数: {detail.stats.categoryCount} 类</div>}
-              {detail.stats.appCount && <div>• 应用数: {detail.stats.appCount} 个</div>}
+              <div>• 总大小: <span className="font-semibold text-blue-600">{formatSize(item.size)}</span></div>
+              {item.fileCount > 0 && <div>• 文件数: {item.fileCount.toLocaleString()} 个</div>}
+              {item.paths && item.paths.length > 0 && <div>• 路径数: {item.paths.length} 个</div>}
             </div>
           </div>
 
           {/* 路径列表 */}
-          {detail.paths && (
+          {item.paths && item.paths.length > 0 && (
             <div>
               <h4 className="text-sm font-medium text-gray-700 mb-2">📂 包含路径</h4>
               <div className="space-y-2">
-                {detail.paths.map((path, index) => (
-                  <div key={index} className="bg-gray-50 rounded p-2 text-sm">
-                    <div className="font-medium text-gray-700">{path.path}</div>
-                    <div className="text-gray-500 text-xs mt-1">
-                      {formatSize(path.size)} {'files' in path && path.files && `(${path.files} 文件)`}
-                      {'description' in path && path.description && <div className="mt-1">{path.description}</div>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* 浏览器列表 */}
-          {detail.browsers && (
-            <div>
-              <h4 className="text-sm font-medium text-gray-700 mb-2">🌐 浏览器列表</h4>
-              <div className="space-y-2">
-                {detail.browsers.map((browser, index) => (
-                  <div key={index} className="bg-gray-50 rounded p-2 text-sm">
-                    <div className="flex items-center gap-2 font-medium text-gray-700">
-                      <span>{browser.icon}</span>
-                      <span>{browser.name}</span>
-                    </div>
-                    <div className="text-gray-500 text-xs mt-1 space-y-0.5">
-                      <div>Cache: {formatSize(browser.cache)}</div>
-                      {browser.cookies > 0 && <div>Cookies: {formatSize(browser.cookies)}</div>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* 最近删除的文件 */}
-          {detail.recentFiles && (
-            <div>
-              <h4 className="text-sm font-medium text-gray-700 mb-2">📂 最近删除的文件</h4>
-              <div className="space-y-2">
-                {detail.recentFiles.map((file, index) => (
-                  <div key={index} className="bg-gray-50 rounded p-2 text-sm">
-                    <div className="font-medium text-gray-700">📄 {file.name}</div>
-                    <div className="text-gray-500 text-xs mt-1 space-y-0.5">
-                      <div>{formatSize(file.size)}</div>
-                      <div>删除时间: {file.deletedDays}天前</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* 分类列表 */}
-          {detail.categories && (
-            <div>
-              <h4 className="text-sm font-medium text-gray-700 mb-2">📂 清理项目</h4>
-              <div className="space-y-2">
-                {detail.categories.map((category, index) => (
-                  <div key={index} className="bg-gray-50 rounded p-2 text-sm">
-                    <div className="flex items-center gap-2 font-medium text-gray-700">
-                      <span>{category.icon}</span>
-                      <span>{category.name}</span>
-                    </div>
-                    <div className="text-gray-500 text-xs mt-1 space-y-0.5">
-                      <div>{formatSize(category.size)}</div>
-                      <div>{category.description}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* 顶部文件 */}
-          {detail.topFiles && (
-            <div>
-              <h4 className="text-sm font-medium text-gray-700 mb-2">📄 文件列表（前10项）</h4>
-              <div className="space-y-2">
-                {detail.topFiles.map((file, index) => (
-                  <div key={index} className="bg-gray-50 rounded p-2 text-sm">
-                    <div className="flex items-center gap-2 font-medium text-gray-700">
-                      <span>{file.icon}</span>
-                      <span>{file.name}</span>
+                {item.paths.map((path, index) => (
+                  <div 
+                    key={index} 
+                    className="bg-gray-50 rounded p-2 text-sm hover:bg-gray-100 transition-colors cursor-pointer group"
+                    onClick={() => handleOpenFolder(path.path)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="font-medium text-gray-700 flex-1 break-all">{path.path}</div>
+                      <FolderOpen className="w-4 h-4 text-gray-400 group-hover:text-blue-500 transition-colors flex-shrink-0 ml-2" />
                     </div>
                     <div className="text-gray-500 text-xs mt-1">
-                      {formatSize(file.size)}
+                      {formatSize(path.size)} • {path.fileCount.toLocaleString()} 个文件 • {path.folderCount.toLocaleString()} 个文件夹
                     </div>
                   </div>
                 ))}
@@ -317,25 +133,6 @@ export default function CleanItemDetail({ item, onClose }: CleanItemDetailProps)
             </div>
           )}
 
-          {/* 应用列表 */}
-          {detail.apps && (
-            <div>
-              <h4 className="text-sm font-medium text-gray-700 mb-2">📂 应用列表</h4>
-              <div className="space-y-2">
-                {detail.apps.map((app, index) => (
-                  <div key={index} className="bg-gray-50 rounded p-2 text-sm">
-                    <div className="flex items-center gap-2 font-medium text-gray-700">
-                      <span>{app.icon}</span>
-                      <span>{app.name}</span>
-                    </div>
-                    <div className="text-gray-500 text-xs mt-1">
-                      {formatSize(app.size)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* 权限要求 */}
           {detail.requireAdmin && (
