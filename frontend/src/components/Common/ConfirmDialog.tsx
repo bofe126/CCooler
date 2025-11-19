@@ -1,4 +1,4 @@
-import { AlertTriangle, Trash2 } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 
 interface ConfirmDialogProps {
   isOpen: boolean;
@@ -19,7 +19,6 @@ export default function ConfirmDialog({
   cancelText = '取消',
   onConfirm,
   onCancel,
-  danger = false,
 }: ConfirmDialogProps) {
   if (!isOpen) return null;
 
