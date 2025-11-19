@@ -8,6 +8,7 @@ declare global {
         App: {
           GetDiskInfo(): Promise<any>;
           ScanCleanItems(): Promise<any>;
+          ScanSingleCleanItem(itemID: string): Promise<any>;
           CleanItems(items: any[]): Promise<void>;
           GetInstalledSoftware(): Promise<any>;
           DetectWeChat(): Promise<any>;
@@ -53,7 +54,31 @@ export const WailsAPI = {
       { id: '5', name: '系统文件清理', size: 5.8 * 1024 ** 3, checked: true, safe: true, status: 'scanned' },
       { id: '6', name: '下载目录', size: 3.2 * 1024 ** 3, checked: false, safe: false, status: 'scanned' },
       { id: '7', name: '应用缓存', size: 0.7 * 1024 ** 3, checked: false, safe: false, status: 'scanned' },
+      { id: '8', name: '应用日志文件', size: 1.2 * 1024 ** 3, checked: false, safe: false, status: 'scanned' },
     ];
+  },
+
+  // 扫描单个清理项
+  scanSingleCleanItem: async (itemID: string) => {
+    if (isWailsEnv()) {
+      return await window.go.main.App.ScanSingleCleanItem(itemID);
+    }
+    // 开发环境模拟延迟（模拟真实扫描时间）
+    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
+    
+    // 返回模拟数据
+    const mockData: Record<string, any> = {
+      '1': { id: '1', name: '系统临时文件', size: 2.3 * 1024 ** 3, fileCount: 1523, checked: true, safe: true, status: 'scanned' },
+      '2': { id: '2', name: '浏览器缓存', size: 1.8 * 1024 ** 3, fileCount: 8942, checked: true, safe: true, status: 'scanned' },
+      '3': { id: '3', name: '回收站', size: 3.5 * 1024 ** 3, fileCount: 234, checked: true, safe: true, status: 'scanned' },
+      '4': { id: '4', name: 'Windows更新缓存', size: 4.2 * 1024 ** 3, fileCount: 156, checked: true, safe: true, status: 'scanned' },
+      '5': { id: '5', name: '系统文件清理', size: 5.8 * 1024 ** 3, fileCount: 3421, checked: true, safe: true, status: 'scanned' },
+      '6': { id: '6', name: '下载目录', size: 3.2 * 1024 ** 3, fileCount: 89, checked: false, safe: false, status: 'scanned' },
+      '7': { id: '7', name: '应用缓存', size: 0.7 * 1024 ** 3, fileCount: 2341, checked: false, safe: false, status: 'scanned' },
+      '8': { id: '8', name: '应用日志文件', size: 1.2 * 1024 ** 3, fileCount: 5623, checked: false, safe: false, status: 'scanned' },
+    };
+    
+    return mockData[itemID] || { id: itemID, name: `清理项 ${itemID}`, size: 0, fileCount: 0, checked: false, safe: true, status: 'scanned' };
   },
 
   // 清理项目

@@ -1,4 +1,5 @@
-import { Check, Loader2, CheckCircle2, XCircle, Clock } from 'lucide-react';
+import { Check } from 'lucide-react';
+import CircularProgress from '@/components/CircularProgress';
 import type { CleanItem } from '@/types';
 
 interface CleanItemListProps {
@@ -15,22 +16,6 @@ export default function CleanItemList({ items, onToggle, onViewDetail, disabled 
     if (gb >= 1) return `${gb.toFixed(1)} GB`;
     const mb = bytes / (1024 ** 2);
     return `${mb.toFixed(0)} MB`;
-  };
-
-  const getStatusIcon = (status: CleanItem['status']) => {
-    switch (status) {
-      case 'completed':
-        return <CheckCircle2 size={16} className="text-green-500" />;
-      case 'scanning':
-      case 'cleaning':
-        return <Loader2 size={16} className="text-primary animate-spin" />;
-      case 'error':
-        return <XCircle size={16} className="text-danger" />;
-      case 'idle':
-        return <Clock size={16} className="text-gray-400" />;
-      default:
-        return null;
-    }
   };
 
   const getStatusText = (item: CleanItem): string => {
@@ -80,12 +65,10 @@ export default function CleanItemList({ items, onToggle, onViewDetail, disabled 
             {item.name}
           </span>
 
-          {/* 状态图标 */}
-          {(item.status === 'scanning' || item.status === 'cleaning' || item.status === 'completed' || item.status === 'error') && (
-            <div className="mr-2">
-              {getStatusIcon(item.status)}
-            </div>
-          )}
+          {/* 圆形进度状态 */}
+          <div className="mr-2">
+            <CircularProgress status={item.status} size={18} />
+          </div>
 
           {/* 大小或状态文字 */}
           <span className={`

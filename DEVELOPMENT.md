@@ -110,8 +110,14 @@ wails build
   - 使用率 >= 90%: 红色（严重）
 
 #### 清理项扫描
-- **API**: `ScanCleanItems()`
+- **API**: `ScanCleanItems()` - 扫描所有清理项（并行）
+- **API**: `ScanSingleCleanItem(itemID)` - 扫描单个清理项（独立线程）
 - **功能**: 扫描所有可清理项目并计算大小
+- **特性**:
+  - 并行扫描，提高速度
+  - 独立线程，避免卡死
+  - 实时进度反馈
+  - 单项失败不影响其他项
 
 **清理项列表**:
 
@@ -120,10 +126,29 @@ wails build
 | 1 | 系统临时文件 | `%TEMP%`, `C:\Windows\Temp` | 安全 | ✓ |
 | 2 | 浏览器缓存 | Chrome/Edge/Firefox 缓存 | 安全 | ✓ |
 | 3 | 回收站 | `C:\$Recycle.Bin` | 安全 | ✓ |
-| 4 | Windows更新缓存 | `C:\Windows\SoftwareDistribution` | 安全 | ✓ |
-| 5 | 系统文件清理 | WER报告、缩略图缓存 | 安全 | ✓ |
+| 4 | Windows更新缓存 | SoftwareDistribution、catroot2 | 安全 | ✓ |
+| 5 | 系统文件清理 | WER报告、系统日志、缩略图缓存 | 安全 | ✓ |
 | 6 | 下载目录 | `%USERPROFILE%\Downloads` | **危险** | ✗ |
 | 7 | 应用缓存 | 应用程序缓存目录 | 安全 | ✗ |
+| 8 | 应用日志文件 | C盘所有 .log 文件 | **注意** | ✗ |
+
+**Windows更新缓存详细路径**:
+- `C:\Windows\SoftwareDistribution\Download` - 更新下载文件
+- `C:\Windows\SoftwareDistribution\DataStore` - 更新历史数据库
+- `C:\Windows\System32\catroot2` - 加密签名缓存（系统会自动重建）
+
+**清理后果**: 下次更新需重新下载，丢失更新历史记录，但不影响系统功能
+
+**注意**: 系统日志（包含 CBS、DISM、WindowsUpdate 等）已归类到"系统文件清理"项
+
+**应用日志文件详细说明**:
+- **扫描范围**: C 盘所有 .log 后缀的文件
+- **跳过目录**: Windows、Program Files、Program Files (x86)、$Recycle.Bin、System Volume Information
+- **扫描时间**: 可能较长（取决于文件数量）
+- **安全性**: 注意 - 可能包含应用程序运行日志，删除后可能影响故障排查
+- **建议**: 仅在确认不需要日志时清理，或定期清理旧日志
+
+**清理后果**: 丢失应用程序日志，无法追溯历史问题，但不影响应用程序运行
 
 #### 清理执行
 - **API**: `CleanItems(items)`

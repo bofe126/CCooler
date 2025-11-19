@@ -4,6 +4,7 @@ import (
 	"ccooler/backend/models"
 	"ccooler/backend/services"
 	"context"
+	"fmt"
 )
 
 // App struct
@@ -39,6 +40,36 @@ func (a *App) GetDiskInfo() (*models.DiskInfo, error) {
 // ScanCleanItems 扫描清理项
 func (a *App) ScanCleanItems() ([]*models.CleanItem, error) {
 	return a.cleanService.ScanCleanItems()
+}
+
+// ScanSingleCleanItem 扫描单个清理项
+func (a *App) ScanSingleCleanItem(itemID string) (*models.CleanItem, error) {
+	// 创建清理项
+	var item *models.CleanItem
+	switch itemID {
+	case "1":
+		item = &models.CleanItem{ID: "1", Name: "系统临时文件", Checked: true, Safe: true, Status: "scanning"}
+	case "2":
+		item = &models.CleanItem{ID: "2", Name: "浏览器缓存", Checked: true, Safe: true, Status: "scanning"}
+	case "3":
+		item = &models.CleanItem{ID: "3", Name: "回收站", Checked: true, Safe: true, Status: "scanning"}
+	case "4":
+		item = &models.CleanItem{ID: "4", Name: "Windows更新缓存", Checked: true, Safe: true, Status: "scanning"}
+	case "5":
+		item = &models.CleanItem{ID: "5", Name: "系统文件清理", Checked: true, Safe: true, Status: "scanning"}
+	case "6":
+		item = &models.CleanItem{ID: "6", Name: "下载目录", Checked: false, Safe: false, Status: "scanning"}
+	case "7":
+		item = &models.CleanItem{ID: "7", Name: "应用缓存", Checked: false, Safe: false, Status: "scanning"}
+	case "8":
+		item = &models.CleanItem{ID: "8", Name: "应用日志文件", Checked: false, Safe: false, Status: "scanning"}
+	default:
+		return nil, fmt.Errorf("unknown item ID: %s", itemID)
+	}
+
+	// 扫描单个项目
+	a.cleanService.ScanSingleItem(item)
+	return item, nil
 }
 
 // CleanItems 清理选中的项目
@@ -94,11 +125,17 @@ func (a *App) CleanItems(items []*models.CleanItem) error {
 			}
 
 		case "4": // Windows更新缓存
-			updatePath := a.cleanService.GetWindowsUpdateCachePath()
-			err = a.cleanService.CleanFolder(updatePath)
-			if err != nil {
+			updatePaths := a.cleanService.GetWindowsUpdateCachePaths()
+			hasError := false
+			for _, path := range updatePaths {
+				err = a.cleanService.CleanFolder(path)
+				if err != nil {
+					hasError = true
+				}
+			}
+			if hasError {
 				item.Status = "error"
-				item.Error = "清理更新缓存失败（需要管理员权限）"
+				item.Error = "部分更新缓存清理失败（需要管理员权限）"
 				continue
 			}
 
@@ -130,6 +167,17 @@ func (a *App) CleanItems(items []*models.CleanItem) error {
 			for _, dir := range cacheDirs {
 				a.cleanService.CleanFolder(dir)
 			}
+
+		case "8": // 应用日志文件
+			cleanedSize, cleanedCount, err := a.cleanService.CleanLogFiles()
+			if err != nil {
+				item.Status = "error"
+				item.Error = "清理日志文件失败: " + err.Error()
+				continue
+			}
+			// 记录清理结果
+			item.Size = cleanedSize
+			item.FileCount = cleanedCount
 		}
 
 		// 标记为完成

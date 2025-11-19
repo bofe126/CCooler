@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 	"syscall"
 	"unsafe"
@@ -123,15 +124,273 @@ func (s *CleanService) GetBrowserCachePaths() []string {
 	return paths
 }
 
-// GetWindowsUpdateCachePath 获取 Windows 更新缓存路径
-func (s *CleanService) GetWindowsUpdateCachePath() string {
-	return `C:\Windows\SoftwareDistribution\Download`
+// GetWindowsUpdateCachePaths 获取 Windows 更新缓存路径（多个）
+func (s *CleanService) GetWindowsUpdateCachePaths() []string {
+	return []string{
+		`C:\Windows\SoftwareDistribution\Download`,  // 更新下载文件
+		`C:\Windows\SoftwareDistribution\DataStore`, // 更新历史数据库
+		`C:\Windows\System32\catroot2`,              // 加密签名缓存
+		// `C:\Windows\Logs\CBS` 已移至系统文件清理项（包含在 C:\Windows\Logs 中）
+	}
 }
 
 // GetDownloadPath 获取下载目录路径
 func (s *CleanService) GetDownloadPath() string {
 	userProfile := os.Getenv("USERPROFILE")
 	return filepath.Join(userProfile, "Downloads")
+}
+
+// ScanLogFiles 扫描常见日志目录中的 .log 文件（优化版本）
+func (s *CleanService) ScanLogFiles() (int64, int, []string, error) {
+	var totalSize int64
+	var fileCount int
+
+	// 按目录分组统计
+	dirStats := make(map[string]struct {
+		size  int64
+		count int
+	})
+
+	// 定义常见的日志文件目录（平衡速度和覆盖率）
+	userProfile := os.Getenv("USERPROFILE")
+	localAppData := os.Getenv("LOCALAPPDATA")
+	appData := os.Getenv("APPDATA")
+	programData := os.Getenv("PROGRAMDATA")
+
+	// 分组定义：不同目录使用不同的扫描深度
+	type scanConfig struct {
+		path     string
+		maxDepth int
+	}
+
+	scanConfigs := []scanConfig{
+		// 用户目录 - 深度扫描（5层）
+		{filepath.Join(localAppData), 5},
+		{filepath.Join(appData), 5},
+
+		// 程序数据 - 深度扫描（5层）
+		{programData, 5},
+
+		// 临时目录 - 中度扫描（4层）
+		{filepath.Join(localAppData, "Temp"), 4},
+		{filepath.Join(userProfile, "AppData", "Local", "Temp"), 4},
+		{"C:\\Temp", 4},
+		{"C:\\tmp", 4},
+
+		// 用户文档和桌面 - 浅度扫描（2层，避免扫描太多个人文件）
+		{filepath.Join(userProfile, "Desktop"), 2},
+		{filepath.Join(userProfile, "Documents"), 2},
+		{filepath.Join(userProfile, "Downloads"), 2},
+
+		// 常见软件安装目录 - 中度扫描（4层）
+		{"C:\\Program Files", 4},
+		{"C:\\Program Files (x86)", 4},
+
+		// 用户根目录下的常见位置 - 浅度扫描（3层）
+		{filepath.Join(userProfile, ".config"), 3},
+		{filepath.Join(userProfile, ".cache"), 3},
+		{filepath.Join(userProfile, ".local"), 3},
+	}
+
+	// 扫描每个目录
+	for _, config := range scanConfigs {
+		if _, err := os.Stat(config.path); os.IsNotExist(err) {
+			continue // 目录不存在，跳过
+		}
+
+		s.scanLogFilesInDir(config.path, 0, config.maxDepth, dirStats, &totalSize, &fileCount)
+	}
+
+	// 提取有日志文件的目录路径并按大小排序
+	type dirInfo struct {
+		path  string
+		size  int64
+		count int
+	}
+
+	var sortedDirs []dirInfo
+	for dir, stats := range dirStats {
+		sortedDirs = append(sortedDirs, dirInfo{
+			path:  dir,
+			size:  stats.size,
+			count: stats.count,
+		})
+	}
+
+	// 按大小排序
+	sort.Slice(sortedDirs, func(i, j int) bool {
+		return sortedDirs[i].size > sortedDirs[j].size
+	})
+
+	// 提取路径（限制数量）
+	var logPaths []string
+	maxPaths := 50
+	for _, dir := range sortedDirs {
+		if len(logPaths) >= maxPaths {
+			break
+		}
+		logPaths = append(logPaths, dir.path)
+	}
+
+	return totalSize, fileCount, logPaths, nil
+}
+
+// scanLogFilesInDir 递归扫描目录中的日志文件（带深度限制）
+func (s *CleanService) scanLogFilesInDir(dir string, currentDepth, maxDepth int, dirStats map[string]struct {
+	size  int64
+	count int
+}, totalSize *int64, fileCount *int) {
+	if currentDepth > maxDepth {
+		return
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return // 无权限或其他错误，跳过
+	}
+
+	for _, entry := range entries {
+		fullPath := filepath.Join(dir, entry.Name())
+
+		if entry.IsDir() {
+			// 跳过一些明显不包含日志的目录（减少跳过项，提高覆盖率）
+			name := entry.Name()
+			if name == "node_modules" || name == ".git" || name == "$Recycle.Bin" ||
+				name == "System Volume Information" {
+				continue
+			}
+
+			// 递归扫描子目录
+			s.scanLogFilesInDir(fullPath, currentDepth+1, maxDepth, dirStats, totalSize, fileCount)
+		} else if filepath.Ext(entry.Name()) == ".log" {
+			// 找到日志文件
+			info, err := entry.Info()
+			if err != nil {
+				continue
+			}
+
+			size := info.Size()
+			*totalSize += size
+			*fileCount++
+
+			// 按父目录分组
+			parentDir := filepath.Dir(fullPath)
+			stats := dirStats[parentDir]
+			stats.size += size
+			stats.count++
+			dirStats[parentDir] = stats
+		}
+	}
+}
+
+// calculateDirLogSize 计算指定目录下的日志文件大小
+func (s *CleanService) calculateDirLogSize(dirPath string) (int64, int, error) {
+	var size int64
+	var count int
+
+	err := filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+
+		// 只统计当前目录，不递归子目录
+		if info.IsDir() && path != dirPath {
+			return filepath.SkipDir
+		}
+
+		// 只处理 .log 文件
+		if !info.IsDir() && filepath.Ext(path) == ".log" {
+			size += info.Size()
+			count++
+		}
+
+		return nil
+	})
+
+	return size, count, err
+}
+
+// CleanLogFiles 清理常见日志目录中的 .log 文件（优化版本）
+func (s *CleanService) CleanLogFiles() (int64, int, error) {
+	var cleanedSize int64
+	var cleanedCount int
+
+	// 定义常见的日志文件目录（与扫描逻辑一致）
+	userProfile := os.Getenv("USERPROFILE")
+	localAppData := os.Getenv("LOCALAPPDATA")
+	appData := os.Getenv("APPDATA")
+	programData := os.Getenv("PROGRAMDATA")
+
+	type cleanConfig struct {
+		path     string
+		maxDepth int
+	}
+
+	cleanConfigs := []cleanConfig{
+		{filepath.Join(localAppData), 5},
+		{filepath.Join(appData), 5},
+		{programData, 5},
+		{filepath.Join(localAppData, "Temp"), 4},
+		{filepath.Join(userProfile, "AppData", "Local", "Temp"), 4},
+		{"C:\\Temp", 4},
+		{"C:\\tmp", 4},
+		{filepath.Join(userProfile, "Desktop"), 2},
+		{filepath.Join(userProfile, "Documents"), 2},
+		{filepath.Join(userProfile, "Downloads"), 2},
+		{"C:\\Program Files", 4},
+		{"C:\\Program Files (x86)", 4},
+		{filepath.Join(userProfile, ".config"), 3},
+		{filepath.Join(userProfile, ".cache"), 3},
+		{filepath.Join(userProfile, ".local"), 3},
+	}
+
+	// 清理每个目录
+	for _, config := range cleanConfigs {
+		if _, err := os.Stat(config.path); os.IsNotExist(err) {
+			continue
+		}
+
+		s.cleanLogFilesInDir(config.path, 0, config.maxDepth, &cleanedSize, &cleanedCount)
+	}
+
+	return cleanedSize, cleanedCount, nil
+}
+
+// cleanLogFilesInDir 递归清理目录中的日志文件（带深度限制）
+func (s *CleanService) cleanLogFilesInDir(dir string, currentDepth, maxDepth int, cleanedSize *int64, cleanedCount *int) {
+	if currentDepth > maxDepth {
+		return
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+
+	for _, entry := range entries {
+		fullPath := filepath.Join(dir, entry.Name())
+
+		if entry.IsDir() {
+			name := entry.Name()
+			if name == "node_modules" || name == ".git" || name == "$Recycle.Bin" ||
+				name == "System Volume Information" {
+				continue
+			}
+
+			s.cleanLogFilesInDir(fullPath, currentDepth+1, maxDepth, cleanedSize, cleanedCount)
+		} else if filepath.Ext(entry.Name()) == ".log" {
+			info, err := entry.Info()
+			if err != nil {
+				continue
+			}
+
+			size := info.Size()
+			if err := os.Remove(fullPath); err == nil {
+				*cleanedSize += size
+				*cleanedCount++
+			}
+		}
+	}
 }
 
 // CalculateFolderSize 计算文件夹大小
@@ -219,6 +478,7 @@ func (s *CleanService) ScanCleanItems() ([]*models.CleanItem, error) {
 		{ID: "5", Name: "系统文件清理", Checked: true, Safe: true, Status: "idle"},
 		{ID: "6", Name: "下载目录", Checked: false, Safe: false, Status: "idle"},
 		{ID: "7", Name: "应用缓存", Checked: false, Safe: false, Status: "idle"},
+		{ID: "8", Name: "应用日志文件", Checked: false, Safe: false, Status: "idle"},
 	}
 
 	// 使用 goroutine 并行扫描
@@ -227,7 +487,7 @@ func (s *CleanService) ScanCleanItems() ([]*models.CleanItem, error) {
 		wg.Add(1)
 		go func(index int) {
 			defer wg.Done()
-			s.scanSingleItem(items[index])
+			s.ScanSingleItem(items[index])
 		}(i)
 	}
 	wg.Wait()
@@ -235,8 +495,8 @@ func (s *CleanService) ScanCleanItems() ([]*models.CleanItem, error) {
 	return items, nil
 }
 
-// scanSingleItem 扫描单个清理项
-func (s *CleanService) scanSingleItem(item *models.CleanItem) {
+// ScanSingleItem 扫描单个清理项（导出方法）
+func (s *CleanService) ScanSingleItem(item *models.CleanItem) {
 	item.Status = "scanning"
 
 	switch item.ID {
@@ -256,7 +516,7 @@ func (s *CleanService) scanSingleItem(item *models.CleanItem) {
 		s.scanPaths(item, paths)
 
 	case "4": // Windows更新缓存
-		paths := []string{s.GetWindowsUpdateCachePath()}
+		paths := s.GetWindowsUpdateCachePaths()
 		s.scanPaths(item, paths)
 
 	case "5": // 系统文件清理
@@ -264,7 +524,7 @@ func (s *CleanService) scanSingleItem(item *models.CleanItem) {
 			`C:\ProgramData\Microsoft\Windows\WER`,
 			filepath.Join(os.Getenv("LOCALAPPDATA"), `Microsoft\Windows\Explorer`),
 			`C:\Windows\Prefetch`,
-			`C:\Windows\Logs`,
+			`C:\Windows\Logs`,                                         // 系统日志（包含CBS、DISM、WindowsUpdate等）
 			`C:\Windows\Installer`,                                    // MSI 安装文件（通常几百MB到几GB）
 			`C:\ProgramData\Microsoft\Windows Defender\Scans\History`, // Defender 扫描历史
 		}
@@ -290,6 +550,34 @@ func (s *CleanService) scanSingleItem(item *models.CleanItem) {
 			filepath.Join(localAppData, "npm-cache"),                        // npm 缓存
 		}
 		s.scanPaths(item, paths)
+
+	case "8": // 应用日志文件
+		size, fileCount, logPaths, err := s.ScanLogFiles()
+		if err == nil {
+			item.Size = size
+			item.FileCount = fileCount
+
+			// 添加路径详情（显示包含日志文件的目录）
+			var pathDetails []models.PathDetail
+			for _, path := range logPaths {
+				// 计算该目录下的日志文件大小
+				dirSize, dirCount, _ := s.calculateDirLogSize(path)
+				if dirSize > 0 {
+					pathDetails = append(pathDetails, models.PathDetail{
+						Path:      path,
+						Size:      dirSize,
+						FileCount: dirCount,
+					})
+				}
+			}
+
+			// 按大小从大到小排序
+			sort.Slice(pathDetails, func(i, j int) bool {
+				return pathDetails[i].Size > pathDetails[j].Size
+			})
+
+			item.Paths = pathDetails
+		}
 	}
 
 	item.Status = "scanned"

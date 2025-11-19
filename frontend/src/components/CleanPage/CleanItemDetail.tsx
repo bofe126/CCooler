@@ -101,6 +101,7 @@ export default function CleanItemDetail({ item, onClose }: CleanItemDetailProps)
       '5': { icon: '🛠️', description: '系统运行产生的各类临时文件和缓存，可安全清理。', warning: '所有项目均可安全清理。', warningLevel: 'safe' },
       '6': { icon: '⚠️', description: '清空用户下载文件夹中的所有文件。', warning: '此操作将删除下载文件夹中的所有文件！请务必确认没有重要文件后再清理。', warningLevel: 'danger' },
       '7': { icon: '📱', description: '各类应用程序产生的缓存文件，可以安全清理。', warning: '清理后应用可能需要重新加载数据，不影响正常使用。', warningLevel: 'info' },
+      '8': { icon: '📝', description: 'C盘中所有 .log 后缀的应用程序日志文件。', warning: '删除后可能影响故障排查，建议仅在确认不需要日志时清理。扫描时间可能较长。', warningLevel: 'warning' },
     };
     
     return configs[item.id] || null;

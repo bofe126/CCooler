@@ -26,16 +26,45 @@ export default function CleanPage() {
     };
     
     const autoScan = async () => {
-      // 自动开始扫描
+      // 自动开始扫描 - 使用独立线程扫描每个清理项
       setPageState('scanning');
-      try {
-        const items = await WailsAPI.scanCleanItems();
-        setCleanItems(items);
-        setPageState('scan-complete');
-      } catch (error) {
-        console.error('Auto scan failed:', error);
-        setPageState('initial');
-      }
+      
+      // 获取所有清理项 ID
+      const itemIDs = ['1', '2', '3', '4', '5', '6', '7', '8'];
+      
+      // 并发扫描所有清理项
+      const scanPromises = itemIDs.map(async (itemID) => {
+        try {
+          // 更新状态为 scanning
+          setCleanItems(prev => 
+            prev.map(item => 
+              item.id === itemID ? { ...item, status: 'scanning' } : item
+            )
+          );
+          
+          // 调用单个清理项扫描 API
+          const scannedItem = await WailsAPI.scanSingleCleanItem(itemID);
+          
+          // 更新扫描结果
+          setCleanItems(prev => 
+            prev.map(item => 
+              item.id === itemID ? { ...scannedItem, checked: item.checked } : item
+            )
+          );
+        } catch (error) {
+          console.error(`Scan item ${itemID} failed:`, error);
+          // 更新为错误状态
+          setCleanItems(prev => 
+            prev.map(item => 
+              item.id === itemID ? { ...item, status: 'error' } : item
+            )
+          );
+        }
+      });
+      
+      // 等待所有扫描完成
+      await Promise.all(scanPromises);
+      setPageState('scan-complete');
     };
     
     loadDiskInfo();
@@ -57,6 +86,7 @@ export default function CleanPage() {
     { id: '5', name: '系统文件清理', size: 0, fileCount: 0, checked: true, safe: true, status: 'idle' },
     { id: '6', name: '下载目录', size: 0, fileCount: 0, checked: false, safe: false, status: 'idle' },
     { id: '7', name: '应用缓存', size: 0, fileCount: 0, checked: false, safe: false, status: 'idle' },
+    { id: '8', name: '应用日志文件', size: 0, fileCount: 0, checked: false, safe: false, status: 'idle' },
   ]);
 
   // 切换清理项选中状态
@@ -84,18 +114,51 @@ export default function CleanPage() {
     return `${mb.toFixed(0)} MB`;
   };
 
-  // 开始扫描
+  // 开始扫描 - 使用独立线程扫描每个清理项
   const handleStartScan = async () => {
     setPageState('scanning');
     
-    try {
-      const items = await WailsAPI.scanCleanItems();
-      setCleanItems(items);
-      setPageState('scan-complete');
-    } catch (error) {
-      console.error('Scan failed:', error);
-      setPageState('initial');
-    }
+    // 重置所有清理项状态
+    setCleanItems(prev => 
+      prev.map(item => ({ ...item, size: 0, fileCount: 0, status: 'idle' }))
+    );
+    
+    // 获取所有清理项 ID
+    const itemIDs = ['1', '2', '3', '4', '5', '6', '7', '8'];
+    
+    // 并发扫描所有清理项
+    const scanPromises = itemIDs.map(async (itemID) => {
+      try {
+        // 更新状态为 scanning
+        setCleanItems(prev => 
+          prev.map(item => 
+            item.id === itemID ? { ...item, status: 'scanning' } : item
+          )
+        );
+        
+        // 调用单个清理项扫描 API
+        const scannedItem = await WailsAPI.scanSingleCleanItem(itemID);
+        
+        // 更新扫描结果
+        setCleanItems(prev => 
+          prev.map(item => 
+            item.id === itemID ? { ...scannedItem, checked: item.checked } : item
+          )
+        );
+      } catch (error) {
+        console.error(`Scan item ${itemID} failed:`, error);
+        // 更新为错误状态
+        setCleanItems(prev => 
+          prev.map(item => 
+            item.id === itemID ? { ...item, status: 'error' } : item
+          )
+        );
+      }
+    });
+    
+    // 等待所有扫描完成
+    await Promise.all(scanPromises);
+    setPageState('scan-complete');
   };
 
   // 开始清理
@@ -133,23 +196,27 @@ export default function CleanPage() {
               onViewDetail={setSelectedItem}
             />
 
-            <div className="mt-4 text-sm text-gray-600">
-              可清理: {formatSize(getTotalCleanableSize())}
-            </div>
-
-            <div className="mt-6 flex items-center gap-4">
-              <button
-                onClick={handleStartScan}
-                className="btn-primary"
-              >
-                开始扫描
-              </button>
-              <button
-                disabled
-                className="btn-disabled"
-              >
-                立即清理
-              </button>
+            <div className="mt-4 flex items-center justify-between">
+              <div className="flex items-baseline gap-2">
+                <span className="text-sm text-gray-600">可清理:</span>
+                <span className="text-2xl font-bold text-primary">{formatSize(getTotalCleanableSize())}</span>
+                <span className="text-sm text-gray-500">(已选中{getCheckedCount()}项)</span>
+              </div>
+              
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleStartScan}
+                  className="btn-primary"
+                >
+                  开始扫描
+                </button>
+                <button
+                  disabled
+                  className="btn-disabled"
+                >
+                  立即清理
+                </button>
+              </div>
             </div>
 
             <div className="mt-4 flex items-start gap-2 text-sm text-gray-500">
@@ -278,11 +345,11 @@ export default function CleanPage() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">C盘剩余:</span>
-                  <span className="font-semibold">217.6 GB / 300 GB</span>
+                  <span className="font-semibold">{formatSize(diskInfo.free)} / {formatSize(diskInfo.total)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">剩余空间增加:</span>
-                  <span className="font-semibold text-primary">9%</span>
+                  <span className="text-gray-600">使用率:</span>
+                  <span className="font-semibold text-primary">{((diskInfo.used / diskInfo.total) * 100).toFixed(1)}%</span>
                 </div>
               </div>
             </div>
