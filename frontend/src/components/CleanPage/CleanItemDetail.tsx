@@ -25,6 +25,72 @@ export default function CleanItemDetail({ item, onClose }: CleanItemDetailProps)
     }
   };
 
+  // 智能识别浏览器名称
+  const getBrowserName = (path: string): string => {
+    if (path.includes('Google\\Chrome')) return 'Chrome';
+    if (path.includes('Microsoft\\Edge')) return 'Edge';
+    if (path.includes('Mozilla\\Firefox')) return 'Firefox';
+    if (path.includes('BraveSoftware')) return 'Brave';
+    if (path.includes('Opera')) return 'Opera';
+    if (path.includes('Vivaldi')) return 'Vivaldi';
+    if (path.includes('Yandex')) return 'Yandex';
+    if (path.includes('360Chrome')) return '360浏览器';
+    if (path.includes('QQBrowser')) return 'QQ浏览器';
+    if (path.includes('SogouExplorer')) return '搜狗浏览器';
+    if (path.includes('UCBrowser')) return 'UC浏览器';
+    if (path.includes('Quark')) return '夸克浏览器';
+    return '其他';
+  };
+
+  // 获取浏览器图标
+  const getBrowserIcon = (browserName: string): string => {
+    const icons: Record<string, string> = {
+      'Chrome': '🔵',
+      'Edge': '🔷',
+      'Firefox': '🦊',
+      'Brave': '🦁',
+      'Opera': '🔴',
+      'Vivaldi': '🎨',
+      'Yandex': '🟡',
+      '360浏览器': '🟢',
+      'QQ浏览器': '🐧',
+      '搜狗浏览器': '🔍',
+      'UC浏览器': '🌐',
+      '夸克浏览器': '⭐',
+      '其他': '📁'
+    };
+    return icons[browserName] || '📁';
+  };
+
+  // 按浏览器分类路径（仅用于浏览器缓存）
+  const groupPathsByBrowser = () => {
+    if (item.id !== '2' || !item.paths) return null;
+
+    const groups: Record<string, typeof item.paths> = {};
+
+    // 按浏览器分组
+    item.paths.forEach(path => {
+      const browserName = getBrowserName(path.path);
+      if (!groups[browserName]) {
+        groups[browserName] = [];
+      }
+      groups[browserName].push(path);
+    });
+
+    // 排序：Chrome、Edge、Firefox 优先，其他按字母排序
+    const priorityOrder = ['Chrome', 'Edge', 'Firefox', 'Brave', 'Opera', 'Vivaldi'];
+    const sortedEntries = Object.entries(groups).sort(([a], [b]) => {
+      const aIndex = priorityOrder.indexOf(a);
+      const bIndex = priorityOrder.indexOf(b);
+      if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+      if (aIndex !== -1) return -1;
+      if (bIndex !== -1) return 1;
+      return a.localeCompare(b, 'zh-CN');
+    });
+
+    return sortedEntries;
+  };
+
   // 根据清理项ID获取详细信息
   const getDetailInfo = () => {
     const configs: Record<string, { icon: string; description: string; warning: string; warningLevel: string; requireAdmin?: boolean }> = {
@@ -113,23 +179,61 @@ export default function CleanItemDetail({ item, onClose }: CleanItemDetailProps)
           {item.paths && item.paths.length > 0 && (
             <div>
               <h4 className="text-sm font-medium text-gray-700 mb-2">📂 包含路径</h4>
-              <div className="space-y-2">
-                {item.paths.map((path, index) => (
-                  <div 
-                    key={index} 
-                    className="bg-gray-50 rounded p-2 text-sm hover:bg-gray-100 transition-colors cursor-pointer group"
-                    onClick={() => handleOpenFolder(path.path)}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="font-medium text-gray-700 flex-1 break-all">{path.path}</div>
-                      <FolderOpen className="w-4 h-4 text-gray-400 group-hover:text-blue-500 transition-colors flex-shrink-0 ml-2" />
+              
+              {/* 浏览器缓存：按浏览器分组显示 */}
+              {item.id === '2' && groupPathsByBrowser() ? (
+                <div className="space-y-4">
+                  {groupPathsByBrowser()!.map(([browserName, paths]) => (
+                    <div key={browserName}>
+                      <div className="text-xs font-semibold text-gray-600 mb-2 flex items-center gap-1">
+                        <span>{getBrowserIcon(browserName)}</span>
+                        <span>{browserName}</span>
+                        <span className="text-gray-400">
+                          ({paths.reduce((sum, p) => sum + p.size, 0) / (1024 ** 2) >= 1024 
+                            ? `${(paths.reduce((sum, p) => sum + p.size, 0) / (1024 ** 3)).toFixed(1)} GB`
+                            : `${(paths.reduce((sum, p) => sum + p.size, 0) / (1024 ** 2)).toFixed(0)} MB`})
+                        </span>
+                      </div>
+                      <div className="space-y-2">
+                        {paths.map((path, index) => (
+                          <div 
+                            key={index} 
+                            className="bg-gray-50 rounded p-2 text-sm hover:bg-gray-100 transition-colors cursor-pointer group"
+                            onClick={() => handleOpenFolder(path.path)}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="font-medium text-gray-700 flex-1 break-all text-xs">{path.path}</div>
+                              <FolderOpen className="w-4 h-4 text-gray-400 group-hover:text-blue-500 transition-colors flex-shrink-0 ml-2" />
+                            </div>
+                            <div className="text-gray-500 text-xs mt-1">
+                              {formatSize(path.size)} • {path.fileCount.toLocaleString()} 个文件 • {path.folderCount.toLocaleString()} 个文件夹
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <div className="text-gray-500 text-xs mt-1">
-                      {formatSize(path.size)} • {path.fileCount.toLocaleString()} 个文件 • {path.folderCount.toLocaleString()} 个文件夹
+                  ))}
+                </div>
+              ) : (
+                /* 其他清理项：正常显示 */
+                <div className="space-y-2">
+                  {item.paths.map((path, index) => (
+                    <div 
+                      key={index} 
+                      className="bg-gray-50 rounded p-2 text-sm hover:bg-gray-100 transition-colors cursor-pointer group"
+                      onClick={() => handleOpenFolder(path.path)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="font-medium text-gray-700 flex-1 break-all">{path.path}</div>
+                        <FolderOpen className="w-4 h-4 text-gray-400 group-hover:text-blue-500 transition-colors flex-shrink-0 ml-2" />
+                      </div>
+                      <div className="text-gray-500 text-xs mt-1">
+                        {formatSize(path.size)} • {path.fileCount.toLocaleString()} 个文件 • {path.folderCount.toLocaleString()} 个文件夹
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

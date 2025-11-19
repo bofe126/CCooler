@@ -66,19 +66,46 @@ func (s *CleanService) GetBrowserCachePaths() []string {
 
 	paths := []string{}
 
-	// Chrome
-	chromePath := filepath.Join(localAppData, `Google\Chrome\User Data\Default\Cache`)
-	if _, err := os.Stat(chromePath); err == nil {
-		paths = append(paths, chromePath)
+	// 通用 Chromium 浏览器列表（支持所有主流浏览器）
+	chromiumBrowsers := []struct {
+		name     string
+		basePath string
+	}{
+		{"Google\\Chrome", filepath.Join(localAppData, `Google\Chrome\User Data\Default`)},
+		{"Microsoft\\Edge", filepath.Join(localAppData, `Microsoft\Edge\User Data\Default`)},
+		{"BraveSoftware\\Brave-Browser", filepath.Join(localAppData, `BraveSoftware\Brave-Browser\User Data\Default`)},
+		{"Vivaldi", filepath.Join(localAppData, `Vivaldi\User Data\Default`)},
+		{"Yandex\\YandexBrowser", filepath.Join(localAppData, `Yandex\YandexBrowser\User Data\Default`)},
+		{"360Chrome\\Chrome", filepath.Join(localAppData, `360Chrome\Chrome\User Data\Default`)},
+		{"Tencent\\QQBrowser", filepath.Join(localAppData, `Tencent\QQBrowser\User Data\Default`)},
+		{"Opera Software\\Opera Stable", filepath.Join(appData, `Opera Software\Opera Stable`)},
+		{"SogouExplorer", filepath.Join(appData, `SogouExplorer\User Data\Default`)},
+		{"UCBrowser", filepath.Join(localAppData, `UCBrowser\User Data\Default`)},
+		{"Quark", filepath.Join(localAppData, `Quark\User Data\Default`)},
 	}
 
-	// Edge
-	edgePath := filepath.Join(localAppData, `Microsoft\Edge\User Data\Default\Cache`)
-	if _, err := os.Stat(edgePath); err == nil {
-		paths = append(paths, edgePath)
+	// 安全可清理的缓存目录（Chromium 通用）
+	cacheDirs := []string{
+		"Cache",          // HTTP 缓存
+		"Code Cache",     // JS/CSS 编译缓存（通常最大）
+		"GPUCache",       // GPU 缓存
+		"Service Worker", // Service Worker 缓存
+		// 注意：不包含 Extensions, IndexedDB, Local Storage 等，避免影响用户体验
 	}
 
-	// Firefox
+	// 扫描所有 Chromium 浏览器
+	for _, browser := range chromiumBrowsers {
+		if _, err := os.Stat(browser.basePath); err == nil {
+			for _, dir := range cacheDirs {
+				cachePath := filepath.Join(browser.basePath, dir)
+				if _, err := os.Stat(cachePath); err == nil {
+					paths = append(paths, cachePath)
+				}
+			}
+		}
+	}
+
+	// Firefox（不同结构）
 	firefoxPath := filepath.Join(appData, `Mozilla\Firefox\Profiles`)
 	if _, err := os.Stat(firefoxPath); err == nil {
 		// 查找 Firefox 配置文件
