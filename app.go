@@ -9,20 +9,24 @@ import (
 
 // App struct
 type App struct {
-	ctx             context.Context
-	cleanService    *services.CleanService
-	softwareService *services.SoftwareService
-	wechatService   *services.WeChatService
-	adminService    *services.AdminService
+	ctx              context.Context
+	cleanService     *services.CleanService
+	softwareService  *services.SoftwareService
+	wechatService    *services.WeChatService
+	adminService     *services.AdminService
+	largeFileService *services.LargeFileService
+	optimizeService  *services.OptimizeService
 }
 
 // NewApp creates a new App application struct
 func NewApp() *App {
 	return &App{
-		cleanService:    services.NewCleanService(),
-		softwareService: services.NewSoftwareService(),
-		wechatService:   services.NewWeChatService(),
-		adminService:    services.NewAdminService(),
+		cleanService:     services.NewCleanService(),
+		softwareService:  services.NewSoftwareService(),
+		wechatService:    services.NewWeChatService(),
+		adminService:     services.NewAdminService(),
+		largeFileService: services.NewLargeFileService(),
+		optimizeService:  services.NewOptimizeService(),
 	}
 }
 
@@ -58,11 +62,9 @@ func (a *App) ScanSingleCleanItem(itemID string) (*models.CleanItem, error) {
 	case "5":
 		item = &models.CleanItem{ID: "5", Name: "系统文件清理", Checked: true, Safe: true, Status: "scanning"}
 	case "6":
-		item = &models.CleanItem{ID: "6", Name: "下载目录", Checked: false, Safe: false, Status: "scanning"}
+		item = &models.CleanItem{ID: "6", Name: "应用缓存", Checked: false, Safe: false, Status: "scanning"}
 	case "7":
-		item = &models.CleanItem{ID: "7", Name: "应用缓存", Checked: false, Safe: false, Status: "scanning"}
-	case "8":
-		item = &models.CleanItem{ID: "8", Name: "应用日志文件", Checked: false, Safe: false, Status: "scanning"}
+		item = &models.CleanItem{ID: "7", Name: "应用日志文件", Checked: false, Safe: false, Status: "scanning"}
 	default:
 		return nil, fmt.Errorf("unknown item ID: %s", itemID)
 	}
@@ -149,16 +151,7 @@ func (a *App) CleanItems(items []*models.CleanItem) error {
 			thumbPath := localAppData + `\..\Local\Microsoft\Windows\Explorer`
 			a.cleanService.CleanFolder(thumbPath)
 
-		case "6": // 下载目录
-			downloadPath := a.cleanService.GetDownloadPath()
-			err = a.cleanService.CleanFolder(downloadPath)
-			if err != nil {
-				item.Status = "error"
-				item.Error = "清理下载目录失败: " + err.Error()
-				continue
-			}
-
-		case "7": // 应用缓存
+		case "6": // 应用缓存
 			localAppData := a.cleanService.GetTempPath()
 			cacheDirs := []string{
 				localAppData + `\..\Local\Temp`,
@@ -168,7 +161,7 @@ func (a *App) CleanItems(items []*models.CleanItem) error {
 				a.cleanService.CleanFolder(dir)
 			}
 
-		case "8": // 应用日志文件
+		case "7": // 应用日志文件
 			cleanedSize, cleanedCount, err := a.cleanService.CleanLogFiles()
 			if err != nil {
 				item.Status = "error"
@@ -212,7 +205,42 @@ func (a *App) IsElevated() bool {
 	return a.adminService.IsElevated()
 }
 
+// RestartAsAdmin 以管理员身份重启应用程序
+func (a *App) RestartAsAdmin() error {
+	return a.adminService.RestartAsAdmin()
+}
+
 // OpenFolder 打开文件夹
 func (a *App) OpenFolder(path string) error {
 	return a.cleanService.OpenFolder(path)
+}
+
+// ScanLargeFiles 扫描C盘大文件
+func (a *App) ScanLargeFiles() (*services.ScanResult, error) {
+	return a.largeFileService.ScanCDrive()
+}
+
+// DeleteLargeFile 删除大文件
+func (a *App) DeleteLargeFile(path string) error {
+	return a.largeFileService.DeleteFile(path)
+}
+
+// OpenLargeFileLocation 在资源管理器中打开大文件位置
+func (a *App) OpenLargeFileLocation(path string) error {
+	return a.largeFileService.OpenFileLocation(path)
+}
+
+// SetLargeFileMinSize 设置大文件最小大小（MB）
+func (a *App) SetLargeFileMinSize(sizeInMB int64) {
+	a.largeFileService.SetMinSize(sizeInMB)
+}
+
+// ScanSystemOptimize 扫描系统优化项
+func (a *App) ScanSystemOptimize() (*services.SystemOptimizeResult, error) {
+	return a.optimizeService.Scan()
+}
+
+// CleanSystemOptimizeItem 清理系统优化项
+func (a *App) CleanSystemOptimizeItem(itemType string) error {
+	return a.optimizeService.Clean(services.SystemOptimizeType(itemType))
 }

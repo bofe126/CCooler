@@ -134,12 +134,6 @@ func (s *CleanService) GetWindowsUpdateCachePaths() []string {
 	}
 }
 
-// GetDownloadPath 获取下载目录路径
-func (s *CleanService) GetDownloadPath() string {
-	userProfile := os.Getenv("USERPROFILE")
-	return filepath.Join(userProfile, "Downloads")
-}
-
 // ScanLogFiles 扫描常见日志目录中的 .log 文件（优化版本）
 func (s *CleanService) ScanLogFiles() (int64, int, []string, error) {
 	var totalSize int64
@@ -476,9 +470,8 @@ func (s *CleanService) ScanCleanItems() ([]*models.CleanItem, error) {
 		{ID: "3", Name: "回收站", Checked: true, Safe: true, Status: "idle"},
 		{ID: "4", Name: "Windows更新缓存", Checked: true, Safe: true, Status: "idle"},
 		{ID: "5", Name: "系统文件清理", Checked: true, Safe: true, Status: "idle"},
-		{ID: "6", Name: "下载目录", Checked: false, Safe: false, Status: "idle"},
-		{ID: "7", Name: "应用缓存", Checked: false, Safe: false, Status: "idle"},
-		{ID: "8", Name: "应用日志文件", Checked: false, Safe: false, Status: "idle"},
+		{ID: "6", Name: "应用缓存", Checked: false, Safe: false, Status: "idle"},
+		{ID: "7", Name: "应用日志文件", Checked: false, Safe: false, Status: "idle"},
 	}
 
 	// 使用 goroutine 并行扫描
@@ -530,11 +523,7 @@ func (s *CleanService) ScanSingleItem(item *models.CleanItem) {
 		}
 		s.scanPaths(item, paths)
 
-	case "6": // 下载目录
-		paths := []string{s.GetDownloadPath()}
-		s.scanPaths(item, paths)
-
-	case "7": // 应用缓存
+	case "6": // 应用缓存
 		localAppData := os.Getenv("LOCALAPPDATA")
 		userProfile := os.Getenv("USERPROFILE")
 		paths := []string{
@@ -551,7 +540,7 @@ func (s *CleanService) ScanSingleItem(item *models.CleanItem) {
 		}
 		s.scanPaths(item, paths)
 
-	case "8": // 应用日志文件
+	case "7": // 应用日志文件
 		size, fileCount, logPaths, err := s.ScanLogFiles()
 		if err == nil {
 			item.Size = size

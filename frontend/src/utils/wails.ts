@@ -14,6 +14,14 @@ declare global {
           DetectWeChat(): Promise<any>;
           OpenWeChat(): Promise<void>;
           OpenFolder(path: string): Promise<void>;
+          IsAdmin(): Promise<boolean>;
+          RestartAsAdmin(): Promise<void>;
+          ScanLargeFiles(): Promise<any>;
+          DeleteLargeFile(path: string): Promise<void>;
+          OpenLargeFileLocation(path: string): Promise<void>;
+          SetLargeFileMinSize(sizeInMB: number): Promise<void>;
+          ScanSystemOptimize(): Promise<any>;
+          CleanSystemOptimizeItem(itemType: string): Promise<void>;
         };
       };
     };
@@ -52,9 +60,8 @@ export const WailsAPI = {
       { id: '3', name: '回收站', size: 3.5 * 1024 ** 3, checked: true, safe: true, status: 'scanned' },
       { id: '4', name: 'Windows更新缓存', size: 4.2 * 1024 ** 3, checked: true, safe: true, status: 'scanned' },
       { id: '5', name: '系统文件清理', size: 5.8 * 1024 ** 3, checked: true, safe: true, status: 'scanned' },
-      { id: '6', name: '下载目录', size: 3.2 * 1024 ** 3, checked: false, safe: false, status: 'scanned' },
-      { id: '7', name: '应用缓存', size: 0.7 * 1024 ** 3, checked: false, safe: false, status: 'scanned' },
-      { id: '8', name: '应用日志文件', size: 1.2 * 1024 ** 3, checked: false, safe: false, status: 'scanned' },
+      { id: '6', name: '应用缓存', size: 0.7 * 1024 ** 3, checked: false, safe: false, status: 'scanned' },
+      { id: '7', name: '应用日志文件', size: 1.2 * 1024 ** 3, checked: false, safe: false, status: 'scanned' },
     ];
   },
 
@@ -73,9 +80,8 @@ export const WailsAPI = {
       '3': { id: '3', name: '回收站', size: 3.5 * 1024 ** 3, fileCount: 234, checked: true, safe: true, status: 'scanned' },
       '4': { id: '4', name: 'Windows更新缓存', size: 4.2 * 1024 ** 3, fileCount: 156, checked: true, safe: true, status: 'scanned' },
       '5': { id: '5', name: '系统文件清理', size: 5.8 * 1024 ** 3, fileCount: 3421, checked: true, safe: true, status: 'scanned' },
-      '6': { id: '6', name: '下载目录', size: 3.2 * 1024 ** 3, fileCount: 89, checked: false, safe: false, status: 'scanned' },
-      '7': { id: '7', name: '应用缓存', size: 0.7 * 1024 ** 3, fileCount: 2341, checked: false, safe: false, status: 'scanned' },
-      '8': { id: '8', name: '应用日志文件', size: 1.2 * 1024 ** 3, fileCount: 5623, checked: false, safe: false, status: 'scanned' },
+      '6': { id: '6', name: '应用缓存', size: 0.7 * 1024 ** 3, fileCount: 2341, checked: false, safe: false, status: 'scanned' },
+      '7': { id: '7', name: '应用日志文件', size: 1.2 * 1024 ** 3, fileCount: 5623, checked: false, safe: false, status: 'scanned' },
     };
     
     return mockData[itemID] || { id: itemID, name: `清理项 ${itemID}`, size: 0, fileCount: 0, checked: false, safe: true, status: 'scanned' };
@@ -139,6 +145,121 @@ export const WailsAPI = {
     }
     // 开发环境模拟
     console.log('Opening folder:', path);
+  },
+
+  // 检查是否有管理员权限
+  isAdmin: async (): Promise<boolean> => {
+    if (isWailsEnv()) {
+      return await window.go.main.App.IsAdmin();
+    }
+    // 开发环境模拟（返回 false）
+    return false;
+  },
+
+  // 以管理员身份重启应用程序
+  restartAsAdmin: async (): Promise<void> => {
+    if (isWailsEnv()) {
+      return await window.go.main.App.RestartAsAdmin();
+    }
+    // 开发环境模拟
+    console.log('Restarting as admin...');
+    alert('开发环境：模拟以管理员身份重启');
+  },
+
+  // 扫描C盘大文件
+  scanLargeFiles: async () => {
+    if (isWailsEnv()) {
+      return await window.go.main.App.ScanLargeFiles();
+    }
+    // 开发环境返回模拟数据
+    return {
+      files: [],
+      stats: [
+        { category: 'all', totalSize: 0, fileCount: 0 },
+        { category: 'download', totalSize: 0, fileCount: 0 },
+        { category: 'video', totalSize: 0, fileCount: 0 },
+        { category: 'document', totalSize: 0, fileCount: 0 },
+        { category: 'other', totalSize: 0, fileCount: 0 },
+      ],
+      totalFiles: 0,
+      totalSize: 0,
+    };
+  },
+
+  // 删除大文件
+  deleteLargeFile: async (path: string) => {
+    if (isWailsEnv()) {
+      return await window.go.main.App.DeleteLargeFile(path);
+    }
+    // 开发环境模拟
+    console.log('Deleting file:', path);
+  },
+
+  // 打开大文件位置
+  openLargeFileLocation: async (path: string) => {
+    if (isWailsEnv()) {
+      return await window.go.main.App.OpenLargeFileLocation(path);
+    }
+    // 开发环境模拟
+    console.log('Opening file location:', path);
+  },
+
+  // 设置大文件最小大小
+  setLargeFileMinSize: async (sizeInMB: number) => {
+    if (isWailsEnv()) {
+      return await window.go.main.App.SetLargeFileMinSize(sizeInMB);
+    }
+    // 开发环境模拟
+    console.log('Setting min size:', sizeInMB, 'MB');
+  },
+
+  // 扫描系统优化项
+  scanSystemOptimize: async () => {
+    if (isWailsEnv()) {
+      return await window.go.main.App.ScanSystemOptimize();
+    }
+    // 开发环境返回模拟数据
+    return {
+      items: [
+        {
+          type: 'hibernation',
+          name: '系统休眠文件',
+          description: '用于快速启动的休眠文件 (hiberfil.sys)，如果不使用休眠功能可以禁用',
+          path: 'C:\\hiberfil.sys',
+          size: 8 * 1024 ** 3, // 8GB
+          enabled: true,
+          canDisable: true,
+        },
+        {
+          type: 'pagefile',
+          name: '虚拟内存文件',
+          description: '系统虚拟内存文件 (pagefile.sys)，建议保留以保证系统稳定运行',
+          path: 'C:\\pagefile.sys',
+          size: 16 * 1024 ** 3, // 16GB
+          enabled: true,
+          canDisable: false,
+        },
+        {
+          type: 'restore',
+          name: '系统还原点',
+          description: '系统还原点占用的空间，可以清理旧的还原点释放空间',
+          path: 'C:\\System Volume Information',
+          size: 12 * 1024 ** 3, // 12GB
+          enabled: true,
+          canDisable: true,
+        },
+      ],
+      totalSize: 36 * 1024 ** 3, // 36GB
+    };
+  },
+
+  // 清理系统优化项
+  cleanSystemOptimizeItem: async (itemType: string) => {
+    if (isWailsEnv()) {
+      return await window.go.main.App.CleanSystemOptimizeItem(itemType);
+    }
+    // 开发环境模拟
+    console.log('Cleaning system optimize item:', itemType);
   },
 };
 

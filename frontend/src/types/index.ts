@@ -70,4 +70,53 @@ export type WeChatPageState =
   | 'error';            // 错误
 
 // 页面类型
-export type PageType = 'clean' | 'software' | 'wechat';
+export type PageType = 'clean' | 'software' | 'wechat' | 'largefile' | 'optimize';
+
+// 大文件分类
+export type LargeFileCategory = 'all' | 'download' | 'media' | 'document' | 'archive' | 'installer' | 'other';
+
+// 大文件信息
+export interface LargeFileInfo {
+  id: string;
+  name: string;
+  path: string;
+  size: number;
+  category: LargeFileCategory;
+  modifiedTime: string;
+  extension: string;
+}
+
+// 分类统计
+export interface CategoryStats {
+  category: LargeFileCategory;
+  totalSize: number;
+  fileCount: number;
+}
+
+// 大文件页面状态
+export type LargeFilePageState = 
+  | 'idle'              // 初始状态
+  | 'scanning'          // 扫描中
+  | 'scanned'           // 扫描完成
+  | 'empty'             // 未找到大文件
+  | 'error';            // 错误
+
+// 系统优化项类型
+export type SystemOptimizeType = 'hibernation' | 'pagefile' | 'restore';
+
+// 系统优化项信息
+export interface SystemOptimizeItem {
+  type: SystemOptimizeType;
+  name: string;
+  description: string;
+  path: string;
+  size: number;
+  enabled: boolean;
+  canDisable: boolean;
+}
+
+// 系统优化扫描结果
+export interface SystemOptimizeResult {
+  items: SystemOptimizeItem[];
+  totalSize: number;
+}
