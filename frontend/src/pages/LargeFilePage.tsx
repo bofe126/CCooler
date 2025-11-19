@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Search, Play, RefreshCw, FileSearch } from 'lucide-react';
 import type { LargeFileCategory, LargeFileInfo, CategoryStats, LargeFilePageState } from '@/types';
 import WailsAPI from '@/utils/wails';
+import ConfirmDialog from '@/components/Common/ConfirmDialog';
 
 export default function LargeFilePage() {
   // 页面状态
@@ -22,6 +23,14 @@ export default function LargeFilePage() {
   
   // 扫描进度
   const [scanProgress, setScanProgress] = useState({ scanned: 0, found: 0 });
+  
+  // 对话框状态
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  }>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
   
   // 分类统计数据
   const [categoryStats, setCategoryStats] = useState<CategoryStats[]>([
@@ -165,32 +174,38 @@ export default function LargeFilePage() {
       .reduce((sum, file) => sum + file.size, 0);
   };
 
-  const handleDeleteSelected = async () => {
+  const handleDeleteSelected = () => {
     if (selectedFiles.size === 0) return;
-    const confirmed = window.confirm(`确定要删除选中的 ${selectedFiles.size} 个文件吗？此操作不可恢复！`);
-    if (confirmed) {
-      try {
-        // 删除选中的文件
-        const filesToDelete = files.filter(file => selectedFiles.has(file.id));
-        for (const file of filesToDelete) {
-          await WailsAPI.deleteLargeFile(file.path);
+    
+    setConfirmDialog({
+      isOpen: true,
+      title: '确认删除',
+      message: `确定要删除选中的 ${selectedFiles.size} 个文件吗？此操作不可恢复！`,
+      onConfirm: async () => {
+        setConfirmDialog({ ...confirmDialog, isOpen: false });
+        try {
+          // 删除选中的文件
+          const filesToDelete = files.filter(file => selectedFiles.has(file.id));
+          for (const file of filesToDelete) {
+            await WailsAPI.deleteLargeFile(file.path);
+          }
+          
+          // 从列表中移除已删除的文件
+          const remainingFiles = files.filter(file => !selectedFiles.has(file.id));
+          setFiles(remainingFiles);
+          setSelectedFiles(new Set());
+          
+          // 重新计算统计信息
+          const newStats = calculateStats(remainingFiles);
+          setCategoryStats(newStats);
+          
+          alert(`成功删除 ${filesToDelete.length} 个文件`);
+        } catch (error) {
+          console.error('删除失败:', error);
+          alert('删除失败: ' + error);
         }
-        
-        // 从列表中移除已删除的文件
-        const remainingFiles = files.filter(file => !selectedFiles.has(file.id));
-        setFiles(remainingFiles);
-        setSelectedFiles(new Set());
-        
-        // 重新计算统计信息
-        const newStats = calculateStats(remainingFiles);
-        setCategoryStats(newStats);
-        
-        alert(`成功删除 ${filesToDelete.length} 个文件`);
-      } catch (error) {
-        console.error('删除失败:', error);
-        alert('删除失败: ' + error);
       }
-    }
+    });
   };
 
   // 计算统计信息
@@ -303,22 +318,27 @@ export default function LargeFilePage() {
                     </button>
                     <button
                       className="text-xs text-red-600 hover:bg-red-50 px-2 py-1 rounded"
-                      onClick={async (e) => {
+                      onClick={(e) => {
                         e.stopPropagation();
-                        const confirmed = window.confirm(`确定要删除文件 "${file.name}" 吗？此操作不可恢复！`);
-                        if (confirmed) {
-                          try {
-                            await WailsAPI.deleteLargeFile(file.path);
-                            const remainingFiles = files.filter(f => f.id !== file.id);
-                            setFiles(remainingFiles);
-                            const newStats = calculateStats(remainingFiles);
-                            setCategoryStats(newStats);
-                            alert('删除成功');
-                          } catch (error) {
-                            console.error('删除失败:', error);
-                            alert('删除失败: ' + error);
+                        setConfirmDialog({
+                          isOpen: true,
+                          title: '确认删除',
+                          message: `确定要删除文件 "${file.name}" 吗？此操作不可恢复！`,
+                          onConfirm: async () => {
+                            setConfirmDialog({ ...confirmDialog, isOpen: false });
+                            try {
+                              await WailsAPI.deleteLargeFile(file.path);
+                              const remainingFiles = files.filter(f => f.id !== file.id);
+                              setFiles(remainingFiles);
+                              const newStats = calculateStats(remainingFiles);
+                              setCategoryStats(newStats);
+                              alert('删除成功');
+                            } catch (error) {
+                              console.error('删除失败:', error);
+                              alert('删除失败: ' + error);
+                            }
                           }
-                        }
+                        });
                       }}
                     >
                       删除
@@ -437,6 +457,16 @@ export default function LargeFilePage() {
           </div>
         </div>
       )}
+
+      {/* 确认对话框 */}
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={() => setConfirmDialog({ ...confirmDialog, isOpen: false })}
+        danger={true}
+      />
     </div>
   );
 }

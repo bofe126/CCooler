@@ -1,12 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { RefreshCw, AlertCircle, CheckCircle, HardDrive, Database, History } from 'lucide-react';
 import type { SystemOptimizeItem } from '@/types';
 import WailsAPI from '@/utils/wails';
 
 export default function OptimizePage() {
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<SystemOptimizeItem[]>([]);
   const [totalSize, setTotalSize] = useState(0);
+
+  // 页面加载时自动扫描
+  useEffect(() => {
+    handleScan();
+  }, []);
 
   // 格式化大小
   const formatSize = (bytes: number): string => {
@@ -68,33 +73,16 @@ export default function OptimizePage() {
     <div className="flex-1 flex flex-col bg-gray-50">
       {/* 头部 */}
       <div className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">设置优化</h1>
-            <p className="text-sm text-gray-500 mt-1">
-              管理系统休眠文件、虚拟内存和系统还原点
-            </p>
-          </div>
-          <button
-            onClick={handleScan}
-            disabled={loading}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
-            {loading ? '扫描中...' : '开始扫描'}
-          </button>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">设置优化</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            管理系统休眠文件、虚拟内存和系统还原点
+          </p>
         </div>
       </div>
 
       {/* 内容区域 */}
       <div className="flex-1 overflow-auto p-6">
-        {items.length === 0 && !loading && (
-          <div className="flex flex-col items-center justify-center py-20 text-gray-400">
-            <AlertCircle size={64} className="mb-4" />
-            <p className="text-lg">点击"开始扫描"检测系统优化项</p>
-          </div>
-        )}
-
         {loading && (
           <div className="flex flex-col items-center justify-center py-20">
             <RefreshCw size={48} className="text-blue-600 animate-spin mb-4" />

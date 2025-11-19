@@ -26,7 +26,7 @@ export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
     {
       id: 'software' as PageType,
       icon: BarChart3,
-      label: '软件统计',
+      label: '软件瘦身',
     },
     {
       id: 'wechat' as PageType,

@@ -220,7 +220,7 @@ export default function SoftwarePage() {
 
   return (
     <div className="p-6">
-      <h2 className="text-lg font-semibold mb-4 text-gray-700">已安装软件</h2>
+      <h2 className="text-lg font-semibold mb-4 text-gray-700">软件瘦身</h2>
       {renderContent()}
     </div>
   );
