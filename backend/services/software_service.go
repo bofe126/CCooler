@@ -4,6 +4,7 @@ import (
 	"ccooler/backend/models"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"golang.org/x/sys/windows/registry"
 )
@@ -71,7 +72,16 @@ func (s *SoftwareService) GetInstalledSoftware() ([]*models.SoftwareInfo, error)
 		}
 	}
 
-	return softwareList, nil
+	// 过滤只显示C盘的软件
+	var cDriveSoftware []*models.SoftwareInfo
+	for _, software := range softwareList {
+		// 检查安装路径是否在C盘（大小写不敏感）
+		if len(software.Path) >= 3 && strings.ToUpper(software.Path[:3]) == "C:\\" {
+			cDriveSoftware = append(cDriveSoftware, software)
+		}
+	}
+
+	return cDriveSoftware, nil
 }
 
 // extractIcon 提取软件图标（返回图标标识）

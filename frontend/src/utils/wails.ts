@@ -104,11 +104,10 @@ export const WailsAPI = {
     if (isWailsEnv()) {
       return await window.go.main.App.GetInstalledSoftware();
     }
-    // 开发环境返回模拟数据
+    // 开发环境返回模拟数据（只显示C盘软件）
     return [
       { name: 'Microsoft Office', path: 'C:\\Program Files\\Microsoft Office', size: 2.3 * 1024 ** 3 },
       { name: 'Google Chrome', path: 'C:\\Program Files\\Google\\Chrome', size: 1.2 * 1024 ** 3 },
-      { name: 'WeChat', path: 'C:\\Program Files\\Tencent\\WeChat', size: 856 * 1024 ** 2 },
       { name: 'Adobe Reader', path: 'C:\\Program Files\\Adobe\\Reader', size: 645 * 1024 ** 2 },
       { name: 'WinRAR', path: 'C:\\Program Files\\WinRAR', size: 12 * 1024 ** 2 },
       { name: 'Visual Studio Code', path: 'C:\\Program Files\\Microsoft VS Code', size: 423 * 1024 ** 2 },
