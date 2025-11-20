@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { FolderOpen, File, Link, MapPin, RefreshCw, Sparkles } from 'lucide-react';
 import type { DesktopFileInfo, DesktopFileType, DesktopPageState } from '@/types';
+import { WailsAPI } from '@/utils/wails';
 import ConfirmDialog from '@/components/Common/ConfirmDialog';
 
 export default function DesktopPage() {
@@ -69,37 +70,31 @@ export default function DesktopPage() {
       setFiles([]);
       setSelectedFiles(new Set());
       
-      // TODO: 调用后端 API 扫描桌面
-      // const result = await WailsAPI.scanDesktop(desktopPath);
+      // 调用后端 API 扫描桌面
+      const result = await WailsAPI.scanDesktop(desktopPath);
       
-      // 模拟数据
-      setTimeout(() => {
-        const mockPath = desktopPath || 'C:\\Users\\Administrator\\Desktop';
-        setDesktopPath(mockPath);
-        
-        const mockFiles: DesktopFileInfo[] = [
-          { id: '1', name: 'Chrome.lnk', path: `${mockPath}\\Chrome.lnk`, type: 'shortcut', size: 2048, modifiedTime: '2024-01-15' },
-          { id: '2', name: 'VSCode.lnk', path: `${mockPath}\\VSCode.lnk`, type: 'shortcut', size: 1856, modifiedTime: '2024-01-14' },
-          { id: '3', name: 'WeChat.lnk', path: `${mockPath}\\WeChat.lnk`, type: 'shortcut', size: 2304, modifiedTime: '2024-01-13' },
-          { id: '4', name: '工作报告.docx', path: `${mockPath}\\工作报告.docx`, type: 'file', size: 1024000, modifiedTime: '2024-01-12' },
-          { id: '5', name: '截图.png', path: `${mockPath}\\截图.png`, type: 'file', size: 512000, modifiedTime: '2024-01-11' },
-          { id: '6', name: '项目文件夹', path: `${mockPath}\\项目文件夹`, type: 'folder', size: 5120000, modifiedTime: '2024-01-10' },
-          { id: '7', name: '临时文件', path: `${mockPath}\\临时文件`, type: 'folder', size: 2048000, modifiedTime: '2024-01-09' },
-        ];
-        
-        setFiles(mockFiles);
-        
-        // 计算统计
-        const newStats = {
-          shortcuts: mockFiles.filter(f => f.type === 'shortcut').length,
-          files: mockFiles.filter(f => f.type === 'file').length,
-          folders: mockFiles.filter(f => f.type === 'folder').length,
-          totalSize: mockFiles.reduce((sum, f) => sum + f.size, 0),
-        };
-        setStats(newStats);
-        
-        setPageState(mockFiles.length > 0 ? 'scanned' : 'empty');
-      }, 1000);
+      // 如果没有设置桌面路径，从结果中获取实际路径（后端返回的文件路径中提取）
+      if (!desktopPath && result.length > 0) {
+        const firstFilePath = result[0].path;
+        const desktopDir = firstFilePath.substring(0, firstFilePath.lastIndexOf('\\'));
+        setDesktopPath(desktopDir);
+      } else if (!desktopPath) {
+        // 如果没有文件，尝试获取默认桌面路径
+        setDesktopPath('C:\\Users\\' + (process.env.USERNAME || 'User') + '\\Desktop');
+      }
+      
+      setFiles(result);
+      
+      // 计算统计
+      const newStats = {
+        shortcuts: result.filter((f: DesktopFileInfo) => f.type === 'shortcut').length,
+        files: result.filter((f: DesktopFileInfo) => f.type === 'file').length,
+        folders: result.filter((f: DesktopFileInfo) => f.type === 'folder').length,
+        totalSize: result.reduce((sum: number, f: DesktopFileInfo) => sum + f.size, 0),
+      };
+      setStats(newStats);
+      
+      setPageState(result.length > 0 ? 'scanned' : 'empty');
     } catch (error) {
       console.error('扫描失败:', error);
       alert('扫描失败: ' + error);
@@ -110,14 +105,8 @@ export default function DesktopPage() {
   // 更改桌面路径
   const handleChangePath = async () => {
     try {
-      // TODO: 调用后端 API 选择文件夹
-      // const newPath = await WailsAPI.selectFolder();
-      // if (newPath) {
-      //   setDesktopPath(newPath);
-      // }
-      
-      // 模拟选择路径
-      const newPath = prompt('请输入新的桌面路径:', desktopPath);
+      // 调用后端 API 选择文件夹
+      const newPath = await WailsAPI.selectFolder();
       if (newPath) {
         setDesktopPath(newPath);
       }
@@ -163,8 +152,8 @@ export default function DesktopPage() {
       onConfirm: async () => {
         setConfirmDialog({ ...confirmDialog, isOpen: false });
         try {
-          // TODO: 调用后端 API 删除文件
-          // await WailsAPI.deleteDesktopFile(file.path);
+          // 调用后端 API 删除文件
+          await WailsAPI.deleteDesktopFile(file.path);
           
           const remainingFiles = files.filter(f => f.id !== file.id);
           setFiles(remainingFiles);
@@ -190,7 +179,7 @@ export default function DesktopPage() {
   };
 
   // 删除选中文件
-  const handleDeleteSelected = () => {
+  const handleDeleteSelected = async () => {
     if (selectedFiles.size === 0) return;
     
     setConfirmDialog({
@@ -200,9 +189,18 @@ export default function DesktopPage() {
       onConfirm: async () => {
         setConfirmDialog({ ...confirmDialog, isOpen: false });
         try {
-          // TODO: 调用后端 API 批量删除文件
-          // const filesToDelete = files.filter(file => selectedFiles.has(file.id));
-          // await WailsAPI.deleteDesktopFiles(filesToDelete.map(f => f.path));
+          // 获取选中文件
+          const filesToDelete = files.filter(file => selectedFiles.has(file.id));
+          
+          // 逐个删除文件
+          for (const file of filesToDelete) {
+            try {
+              await WailsAPI.deleteDesktopFile(file.path);
+            } catch (error) {
+              console.error(`删除文件失败 ${file.name}:`, error);
+              // 继续删除其他文件
+            }
+          }
           
           const remainingFiles = files.filter(file => !selectedFiles.has(file.id));
           setFiles(remainingFiles);
@@ -255,45 +253,6 @@ export default function DesktopPage() {
     if (pageState === 'scanned') {
       return (
         <>
-          {/* 统计卡片 */}
-          <div className="grid grid-cols-3 gap-4 mb-6">
-            {/* 快捷方式 */}
-            <div className="bg-white border border-gray-200 rounded-lg p-4 text-center hover:shadow-md transition-shadow">
-              <div className="flex justify-center mb-2">
-                <Link className="text-blue-600" size={32} />
-              </div>
-              <div className="text-sm text-gray-600 mb-1">快捷方式</div>
-              <div className="text-2xl font-bold text-gray-900">{stats.shortcuts}</div>
-              <div className="text-xs text-gray-500 mt-1">
-                {formatSize(files.filter(f => f.type === 'shortcut').reduce((sum, f) => sum + f.size, 0))}
-              </div>
-            </div>
-
-            {/* 文件 */}
-            <div className="bg-white border border-gray-200 rounded-lg p-4 text-center hover:shadow-md transition-shadow">
-              <div className="flex justify-center mb-2">
-                <File className="text-gray-600" size={32} />
-              </div>
-              <div className="text-sm text-gray-600 mb-1">文件</div>
-              <div className="text-2xl font-bold text-gray-900">{stats.files}</div>
-              <div className="text-xs text-gray-500 mt-1">
-                {formatSize(files.filter(f => f.type === 'file').reduce((sum, f) => sum + f.size, 0))}
-              </div>
-            </div>
-
-            {/* 文件夹 */}
-            <div className="bg-white border border-gray-200 rounded-lg p-4 text-center hover:shadow-md transition-shadow">
-              <div className="flex justify-center mb-2">
-                <FolderOpen className="text-yellow-600" size={32} />
-              </div>
-              <div className="text-sm text-gray-600 mb-1">文件夹</div>
-              <div className="text-2xl font-bold text-gray-900">{stats.folders}</div>
-              <div className="text-xs text-gray-500 mt-1">
-                {formatSize(files.filter(f => f.type === 'folder').reduce((sum, f) => sum + f.size, 0))}
-              </div>
-            </div>
-          </div>
-
           {/* 文件列表 */}
           <div className="bg-white rounded-lg border border-gray-200">
             {/* 表头 */}

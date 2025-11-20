@@ -63,3 +63,13 @@ type CleanProgress struct {
 	Cleaned   int64  `json:"cleaned"`
 	TotalSize int64  `json:"totalSize"`
 }
+
+// DesktopFileInfo 桌面文件信息
+type DesktopFileInfo struct {
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	Path         string `json:"path"`
+	Type         string `json:"type"`
+	Size         int64  `json:"size"`
+	ModifiedTime string `json:"modifiedTime"`
+}

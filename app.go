@@ -282,3 +282,18 @@ func (a *App) ScanSystemOptimize() (*services.SystemOptimizeResult, error) {
 func (a *App) CleanSystemOptimizeItem(itemType string) error {
 	return a.optimizeService.Clean(services.SystemOptimizeType(itemType))
 }
+
+// ScanDesktop 扫描桌面文件
+func (a *App) ScanDesktop(desktopPath string) ([]*models.DesktopFileInfo, error) {
+	return a.cleanService.ScanDesktop(desktopPath)
+}
+
+// DeleteDesktopFile 删除桌面文件
+func (a *App) DeleteDesktopFile(filePath string) error {
+	return a.cleanService.DeleteDesktopFile(filePath)
+}
+
+// SelectFolder 选择文件夹
+func (a *App) SelectFolder() (string, error) {
+	return a.cleanService.SelectFolder()
+}

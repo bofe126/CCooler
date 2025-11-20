@@ -22,6 +22,9 @@ declare global {
           SetLargeFileMinSize(sizeInMB: number): Promise<void>;
           ScanSystemOptimize(): Promise<any>;
           CleanSystemOptimizeItem(itemType: string): Promise<void>;
+          ScanDesktop(desktopPath: string): Promise<any>;
+          DeleteDesktopFile(filePath: string): Promise<void>;
+          SelectFolder(): Promise<string>;
         };
       };
     };
@@ -260,6 +263,58 @@ export const WailsAPI = {
     }
     // 开发环境模拟
     console.log('Cleaning system optimize item:', itemType);
+  },
+
+  // 扫描桌面文件
+  scanDesktop: async (desktopPath?: string) => {
+    if (isWailsEnv()) {
+      return await window.go.main.App.ScanDesktop(desktopPath || "");
+    }
+    // 开发环境返回模拟数据
+    return [
+      {
+        id: '1',
+        name: 'Chrome.lnk',
+        path: 'C:\\Users\\Administrator\\Desktop\\Chrome.lnk',
+        type: 'shortcut',
+        size: 2048,
+        modifiedTime: '2024-11-20 10:30:00'
+      },
+      {
+        id: '2',
+        name: 'VSCode.lnk',
+        path: 'C:\\Users\\Administrator\\Desktop\\VSCode.lnk',
+        type: 'shortcut',
+        size: 1856,
+        modifiedTime: '2024-11-19 15:20:00'
+      },
+      {
+        id: '3',
+        name: '工作报告.docx',
+        path: 'C:\\Users\\Administrator\\Desktop\\工作报告.docx',
+        type: 'file',
+        size: 1024000,
+        modifiedTime: '2024-11-18 09:15:00'
+      }
+    ];
+  },
+
+  // 删除桌面文件
+  deleteDesktopFile: async (filePath: string) => {
+    if (isWailsEnv()) {
+      return await window.go.main.App.DeleteDesktopFile(filePath);
+    }
+    // 开发环境模拟
+    console.log('Deleting desktop file:', filePath);
+  },
+
+  // 选择文件夹
+  selectFolder: async () => {
+    if (isWailsEnv()) {
+      return await window.go.main.App.SelectFolder();
+    }
+    // 开发环境返回模拟路径（使用当前用户的桌面）
+    return 'C:\\Users\\' + (process.env.USERNAME || 'User') + '\\Desktop';
   },
 };
 

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"syscall"
 	"unsafe"
@@ -733,4 +734,114 @@ func (s *CleanService) OpenFolder(path string) error {
 	}
 
 	return nil
+}
+
+// ScanDesktop 扫描桌面文件
+func (s *CleanService) ScanDesktop(desktopPath string) ([]*models.DesktopFileInfo, error) {
+	// 如果没有提供路径，使用默认桌面路径
+	if desktopPath == "" {
+		userProfile := os.Getenv("USERPROFILE")
+		if userProfile == "" {
+			return nil, fmt.Errorf("无法获取用户配置文件路径")
+		}
+		desktopPath = filepath.Join(userProfile, "Desktop")
+
+		// 检查路径是否存在，如果不存在尝试其他可能的位置
+		if _, err := os.Stat(desktopPath); os.IsNotExist(err) {
+			// 尝试公共桌面路径
+			publicProfile := os.Getenv("PUBLIC")
+			if publicProfile != "" {
+				publicDesktop := filepath.Join(publicProfile, "Desktop")
+				if _, err := os.Stat(publicDesktop); err == nil {
+					desktopPath = publicDesktop
+				}
+			}
+
+			// 如果仍然不存在，尝试获取当前用户的真实桌面路径
+			if _, err := os.Stat(desktopPath); os.IsNotExist(err) {
+				// 使用 Windows API 获取桌面路径（简化实现）
+				desktopPath = s.getDesktopPath()
+			}
+		}
+	}
+
+	// 检查路径是否存在
+	if _, err := os.Stat(desktopPath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("桌面路径不存在: %s", desktopPath)
+	}
+
+	// 读取桌面目录内容
+	entries, err := os.ReadDir(desktopPath)
+	if err != nil {
+		return nil, fmt.Errorf("无法读取桌面目录: %v", err)
+	}
+
+	var files []*models.DesktopFileInfo
+	id := 1
+
+	for _, entry := range entries {
+		fullPath := filepath.Join(desktopPath, entry.Name())
+
+		// 获取文件信息
+		info, err := entry.Info()
+		if err != nil {
+			continue // 跳过无法获取信息的文件
+		}
+
+		// 判断文件类型
+		fileType := "file"
+		if info.IsDir() {
+			fileType = "folder"
+		} else if strings.HasSuffix(strings.ToLower(entry.Name()), ".lnk") {
+			fileType = "shortcut"
+		}
+
+		desktopFile := &models.DesktopFileInfo{
+			ID:           fmt.Sprintf("%d", id),
+			Name:         entry.Name(),
+			Path:         fullPath,
+			Type:         fileType,
+			Size:         info.Size(),
+			ModifiedTime: info.ModTime().Format("2006-01-02 15:04:05"),
+		}
+
+		files = append(files, desktopFile)
+		id++
+	}
+
+	return files, nil
+}
+
+// getDesktopPath 获取当前用户的桌面路径
+func (s *CleanService) getDesktopPath() string {
+	userProfile := os.Getenv("USERPROFILE")
+	if userProfile != "" {
+		desktopPath := filepath.Join(userProfile, "Desktop")
+		return desktopPath
+	}
+	// 兜底方案
+	return "C:\\Users\\Default\\Desktop"
+}
+
+// DeleteDesktopFile 删除桌面文件
+func (s *CleanService) DeleteDesktopFile(filePath string) error {
+	// 检查文件是否存在
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return fmt.Errorf("文件不存在: %s", filePath)
+	}
+
+	// 删除文件或文件夹
+	err := os.RemoveAll(filePath)
+	if err != nil {
+		return fmt.Errorf("删除失败: %v", err)
+	}
+
+	return nil
+}
+
+// SelectFolder 使用系统对话框选择文件夹
+func (s *CleanService) SelectFolder() (string, error) {
+	// 这里使用简单的实现，实际项目中可能需要使用 Windows API 或第三方库
+	// 返回当前用户的桌面路径
+	return s.getDesktopPath(), nil
 }
