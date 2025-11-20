@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Monitor, FolderOpen, File, Link, MapPin, RefreshCw, Sparkles } from 'lucide-react';
+import { FolderOpen, File, Link, MapPin, RefreshCw, Sparkles } from 'lucide-react';
 import type { DesktopFileInfo, DesktopFileType, DesktopPageState } from '@/types';
-import WailsAPI from '@/utils/wails';
 import ConfirmDialog from '@/components/Common/ConfirmDialog';
 
 export default function DesktopPage() {
@@ -61,16 +60,6 @@ export default function DesktopPage() {
       default:
         return <File className="text-gray-600" size={20} />;
     }
-  };
-
-  // 获取文件类型名称
-  const getFileTypeName = (type: DesktopFileType): string => {
-    const names: Record<DesktopFileType, string> = {
-      shortcut: '快捷方式',
-      folder: '文件夹',
-      file: '文件',
-    };
-    return names[type];
   };
 
   // 扫描桌面

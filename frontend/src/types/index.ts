@@ -70,7 +70,7 @@ export type WeChatPageState =
   | 'error';            // 错误
 
 // 页面类型
-export type PageType = 'clean' | 'software' | 'wechat' | 'largefile' | 'optimize';
+export type PageType = 'clean' | 'desktop' | 'software' | 'wechat' | 'largefile' | 'optimize';
 
 // 大文件分类
 export type LargeFileCategory = 'all' | 'download' | 'media' | 'document' | 'archive' | 'installer' | 'other';
@@ -120,3 +120,23 @@ export interface SystemOptimizeResult {
   items: SystemOptimizeItem[];
   totalSize: number;
 }
+
+// 桌面文件类型
+export type DesktopFileType = 'shortcut' | 'folder' | 'file';
+
+// 桌面文件信息
+export interface DesktopFileInfo {
+  id: string;
+  name: string;
+  path: string;
+  type: DesktopFileType;
+  size: number;
+  modifiedTime: string;
+}
+
+// 桌面清理页面状态
+export type DesktopPageState = 
+  | 'scanning'          // 扫描中
+  | 'scanned'           // 扫描完成
+  | 'empty'             // 桌面为空
+  | 'error';            // 错误

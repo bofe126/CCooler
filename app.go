@@ -5,6 +5,8 @@ import (
 	"ccooler/backend/services"
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 )
 
 // App struct
@@ -142,23 +144,59 @@ func (a *App) CleanItems(items []*models.CleanItem) error {
 			}
 
 		case "5": // 系统文件清理
-			// Windows 错误报告
-			werPath := `C:\ProgramData\Microsoft\Windows\WER`
-			a.cleanService.CleanFolder(werPath)
-
-			// 缩略图缓存
-			localAppData := a.cleanService.GetTempPath()
-			thumbPath := localAppData + `\..\Local\Microsoft\Windows\Explorer`
-			a.cleanService.CleanFolder(thumbPath)
+			// 清理所有系统文件路径（与扫描逻辑严格一致）
+			systemPaths := []string{
+				`C:\ProgramData\Microsoft\Windows\WER`,
+				filepath.Join(os.Getenv("LOCALAPPDATA"), `Microsoft\Windows\Explorer`),
+				`C:\Windows\Prefetch`,
+				`C:\Windows\Logs`,
+				`C:\Windows\Installer`,
+				`C:\ProgramData\Microsoft\Windows Defender\Scans\History`,
+			}
+			hasError := false
+			var errorMsg string
+			for _, path := range systemPaths {
+				err = a.cleanService.CleanFolder(path)
+				if err != nil {
+					hasError = true
+					errorMsg = "部分系统文件清理失败（可能需要管理员权限）"
+				}
+			}
+			if hasError {
+				item.Status = "error"
+				item.Error = errorMsg
+				continue
+			}
 
 		case "6": // 应用缓存
-			localAppData := a.cleanService.GetTempPath()
+			// 清理所有应用缓存路径（与扫描逻辑严格一致）
+			localAppData := os.Getenv("LOCALAPPDATA")
+			userProfile := os.Getenv("USERPROFILE")
 			cacheDirs := []string{
-				localAppData + `\..\Local\Temp`,
-				localAppData + `\..\Local\Microsoft\Windows\INetCache`,
+				filepath.Join(localAppData, "Temp"),
+				filepath.Join(localAppData, "Microsoft", "Windows", "INetCache"),
+				filepath.Join(localAppData, "CrashDumps"),
+				filepath.Join(localAppData, "Microsoft", "Windows", "WebCache"),
+				filepath.Join(localAppData, "Microsoft", "Windows", "Caches"),
+				filepath.Join(localAppData, "Packages"),
+				filepath.Join(userProfile, ".gradle", "caches"),
+				filepath.Join(userProfile, ".m2", "repository"),
+				filepath.Join(localAppData, "pip", "cache"),
+				filepath.Join(localAppData, "npm-cache"),
 			}
+			hasError := false
+			var errorMsg string
 			for _, dir := range cacheDirs {
-				a.cleanService.CleanFolder(dir)
+				err = a.cleanService.CleanFolder(dir)
+				if err != nil {
+					hasError = true
+					errorMsg = "部分应用缓存清理失败（应用可能正在使用）"
+				}
+			}
+			if hasError {
+				item.Status = "error"
+				item.Error = errorMsg
+				continue
 			}
 
 		case "7": // 应用日志文件

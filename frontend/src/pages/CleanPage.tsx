@@ -21,7 +21,7 @@ export default function CleanPage({ onCleanComplete, onCleanStart }: CleanPagePr
       setPageState('scanning');
       
       // 获取所有清理项 ID
-      const itemIDs = ['1', '2', '3', '4', '5', '6', '7', '8'];
+      const itemIDs = ['1', '2', '3', '4', '5', '6', '7'];
       
       // 并发扫描所有清理项
       const scanPromises = itemIDs.map(async (itemID) => {
@@ -163,6 +163,7 @@ export default function CleanPage({ onCleanComplete, onCleanStart }: CleanPagePr
     setPageState('cleaning');
     
     try {
+      // 程序已经以管理员权限运行，直接清理所有文件
       await WailsAPI.cleanItems(cleanItems);
       
       // 通知父组件清理完成
@@ -178,79 +179,6 @@ export default function CleanPage({ onCleanComplete, onCleanStart }: CleanPagePr
   // 获取选中项数量
   const getCheckedCount = (): number => {
     return cleanItems.filter(item => item.checked).length;
-  };
-
-  // 再次清除（管理员权限）
-  const handleDeepClean = async () => {
-    try {
-      // 1. 检查当前是否有管理员权限
-      const isAdmin = await WailsAPI.isAdmin();
-      
-      if (!isAdmin) {
-        // 没有管理员权限，询问是否以管理员身份重启
-        const confirmed = window.confirm(
-          '需要管理员权限才能执行深度清理。\n\n' +
-          '是否以管理员身份重启 CCooler？\n\n' +
-          '点击"确定"将：\n' +
-          '1. 弹出 UAC 权限提示\n' +
-          '2. 以管理员身份重新启动程序\n' +
-          '3. 当前程序将自动关闭\n\n' +
-          '点击"取消"将返回当前页面。'
-        );
-        
-        if (!confirmed) return;
-        
-        // 以管理员身份重启
-        try {
-          await WailsAPI.restartAsAdmin();
-          // 注意：如果成功，程序会自动退出，不会执行到这里
-        } catch (error) {
-          alert('重启失败：' + (error as Error).message + '\n\n请手动以管理员身份运行 CCooler。');
-        }
-        return;
-      }
-      
-      // 2. 有管理员权限，确认是否继续
-      const confirmed = window.confirm(
-        '将以管理员权限执行深度清理。\n\n' +
-        '这将尝试清理：\n' +
-        '• Windows 更新缓存（需要管理员权限的部分）\n' +
-        '• 系统临时文件（受保护的文件）\n' +
-        '• 其他受保护的系统文件\n\n' +
-        '是否继续？'
-      );
-      
-      if (!confirmed) return;
-      
-      // 3. 重置清理项状态并开始清理
-      setPageState('cleaning');
-      
-      // 只清理需要管理员权限的项目
-      const adminItems = cleanItems.map(item => {
-        // Windows 更新缓存和系统文件清理需要管理员权限
-        if (item.id === '4' || item.id === '5') {
-          return { ...item, checked: true };
-        }
-        return { ...item, checked: false };
-      });
-      
-      setCleanItems(adminItems);
-      
-      // 执行清理
-      await WailsAPI.cleanItems(adminItems);
-      
-      // 计算清理大小并通知父组件
-      const adminCleanSize = adminItems
-        .filter(item => item.checked)
-        .reduce((sum, item) => sum + item.size, 0);
-      onCleanComplete(adminCleanSize);
-      
-      setPageState('clean-complete');
-    } catch (error) {
-      console.error('Deep clean failed:', error);
-      alert('深度清理失败：' + (error as Error).message);
-      setPageState('clean-complete'); // 返回清理完成页面
-    }
   };
 
   // 渲染页面内容
@@ -389,7 +317,7 @@ export default function CleanPage({ onCleanComplete, onCleanStart }: CleanPagePr
             </div>
 
             <div className="text-sm text-gray-600 mb-4">
-              当前: 正在清理回收站...
+              正在清理选中的项目，请稍候...
             </div>
 
             <button className="btn-danger">
@@ -463,18 +391,12 @@ export default function CleanPage({ onCleanComplete, onCleanStart }: CleanPagePr
               </div>
             </div>
 
-            <div className="mt-6 flex items-center gap-3">
+            <div className="mt-6">
               <button
                 onClick={() => setPageState('initial')}
-                className="btn-primary flex-1"
+                className="btn-primary w-full"
               >
                 确定
-              </button>
-              <button
-                onClick={handleDeepClean}
-                className="btn-secondary flex-1"
-              >
-                🔐 再次清除（管理员）
               </button>
             </div>
           </>
