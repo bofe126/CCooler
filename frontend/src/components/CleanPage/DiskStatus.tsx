@@ -79,7 +79,9 @@ export default function DiskStatus({ diskInfo, cleanedSize = 0, showCleanedTip =
         {/* 清理成功提示 */}
         {showCleanedTip && cleanedSize > 0 && (
           <div className="text-sm text-green-600 flex items-center gap-1 animate-fade-in whitespace-nowrap">
-            <span>✅</span>
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+            </svg>
             <span>成功释放 <span className="font-semibold">{cleanedGB} GB</span></span>
           </div>
         )}
@@ -87,9 +89,9 @@ export default function DiskStatus({ diskInfo, cleanedSize = 0, showCleanedTip =
         {/* 使用率提示 */}
         {!showCleanedTip && usedPercentage >= 80 && (
           <div className={`text-xs ${getTextColor()} whitespace-nowrap`}>
-            {usedPercentage >= 90 
-              ? '⚠️ 空间严重不足' 
-              : '⚠️ 空间不足'}
+            {usedPercentage >= 90
+              ? '空间严重不足'
+              : '空间不足'}
           </div>
         )}
       </div>

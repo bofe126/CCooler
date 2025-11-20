@@ -3,6 +3,7 @@ import { Search, Play, RefreshCw, FileSearch, Database, Download, Film, FileText
 import type { LargeFileCategory, LargeFileInfo, CategoryStats, LargeFilePageState } from '@/types';
 import WailsAPI from '@/utils/wails';
 import ConfirmDialog from '@/components/Common/ConfirmDialog';
+import { formatFileSize } from '@/utils/formatters';
 
 interface LargeFilePageProps {
   onOptimizableSpaceUpdate?: (size: number) => void;
@@ -49,10 +50,7 @@ export default function LargeFilePage({ onOptimizableSpaceUpdate }: LargeFilePag
 
   // 工具函数
   const formatSize = (bytes: number): string => {
-    const gb = bytes / (1024 ** 3);
-    if (gb >= 1) return `${gb.toFixed(1)} GB`;
-    const mb = bytes / (1024 ** 2);
-    return `${mb.toFixed(0)} MB`;
+    return formatFileSize(bytes);
   };
 
   const getCategoryName = (category: LargeFileCategory): string => {
@@ -283,7 +281,9 @@ export default function LargeFilePage({ onOptimizableSpaceUpdate }: LargeFilePag
     if (filteredFiles.length === 0) {
       return (
         <div className="flex flex-col items-center justify-center py-20">
-          <div className="text-6xl mb-4">📭</div>
+          <div className="text-6xl mb-4 text-gray-400">
+            <Folder size={80} />
+          </div>
           <h3 className="text-xl font-semibold text-gray-700 mb-2">该分类下暂无文件</h3>
           <p className="text-gray-500">切换其他分类查看</p>
         </div>

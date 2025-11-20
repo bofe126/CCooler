@@ -4,6 +4,7 @@ import CleanItemList from '@/components/CleanPage/CleanItemList';
 import CleanItemDetail from '@/components/CleanPage/CleanItemDetail';
 import WailsAPI from '@/utils/wails';
 import type { CleanItem, CleanPageState } from '@/types';
+import { formatSize } from '@/utils/formatters';
 
 interface CleanPageProps {
   onCleanComplete: (size: number) => void;
@@ -103,15 +104,6 @@ export default function CleanPage({ onCleanComplete, onCleanStart, onOptimizable
     return cleanItems
       .filter(item => item.checked)
       .reduce((sum, item) => sum + item.size, 0);
-  };
-
-  // 格式化大小
-  const formatSize = (bytes: number): string => {
-    if (bytes === 0) return '-- GB';
-    const gb = bytes / (1024 ** 3);
-    if (gb >= 1) return `${gb.toFixed(1)} GB`;
-    const mb = bytes / (1024 ** 2);
-    return `${mb.toFixed(0)} MB`;
   };
 
   // 开始扫描 - 使用独立线程扫描每个清理项
@@ -313,7 +305,7 @@ export default function CleanPage({ onCleanComplete, onCleanStart, onOptimizable
           <>
             <div className="mb-4 flex items-center gap-2 text-primary">
               <Trash2 size={20} className="animate-pulse" />
-              <span className="font-medium">🗑️ 正在清理...</span>
+              <span className="font-medium">正在清理...</span>
             </div>
 
             <div className="bg-white rounded-lg p-4 shadow-sm mb-4">
@@ -342,7 +334,7 @@ export default function CleanPage({ onCleanComplete, onCleanStart, onOptimizable
           <>
             <div className="mb-4 flex items-center gap-2 text-green-600">
               <CheckCircle size={20} />
-              <span className="font-medium">✅ 清理完成！</span>
+              <span className="font-medium">清理完成！</span>
             </div>
 
             {/* 删除文件记录框 */}

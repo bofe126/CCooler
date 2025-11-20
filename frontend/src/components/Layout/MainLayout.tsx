@@ -74,11 +74,11 @@ export default function MainLayout({
               </div>
               <div>
                 <h1 className="text-lg font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">
-                  C-Cooler
+                  CCooler
                 </h1>
               </div>
             </div>
-            <p className="text-xs text-gray-600 mt-1 ml-10 font-medium">极速冷却C盘 ❄️</p>
+            <p className="text-xs text-gray-600 mt-1 ml-10 font-medium">智能C盘清理工具</p>
           </div>
           
           {/* C盘状态 - 白色背景 */}

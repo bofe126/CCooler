@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Loader2, RefreshCw, AlertTriangle, CheckCircle } from 'lucide-react';
 import WailsAPI from '@/utils/wails';
 import type { WeChatData, WeChatPageState } from '@/types';
+import { formatSize } from '@/utils/formatters';
 
 interface WeChatPageProps {
   onOptimizableSpaceUpdate?: (size: number) => void;
@@ -10,13 +11,6 @@ interface WeChatPageProps {
 export default function WeChatPage({ onOptimizableSpaceUpdate }: WeChatPageProps = {}) {
   const [pageState, setPageState] = useState<WeChatPageState>('scanning');
   const [wechatData, setWechatData] = useState<WeChatData | null>(null);
-
-  const formatSize = (bytes: number): string => {
-    const gb = bytes / (1024 ** 3);
-    if (gb >= 1) return `${gb.toFixed(1)} GB`;
-    const mb = bytes / (1024 ** 2);
-    return `${mb.toFixed(0)} MB`;
-  };
 
   const scanWeChatData = async () => {
     setPageState('scanning');
@@ -61,11 +55,11 @@ export default function WeChatPage({ onOptimizableSpaceUpdate }: WeChatPageProps
         return (
           <div className="flex flex-col items-center justify-center py-20">
             <AlertTriangle size={48} className="text-yellow-500 mb-4" />
-            <p className="text-gray-700 font-medium mb-2">⚠️ 未检测到微信</p>
+            <p className="text-gray-700 font-medium mb-2">未检测到微信</p>
             <p className="text-sm text-gray-500 mb-6">未在系统中找到微信安装</p>
             
             <div className="text-sm text-gray-600 mb-6">
-              <p className="mb-2">💡 请确保：</p>
+              <p className="mb-2">请确保：</p>
               <ul className="list-disc list-inside space-y-1 text-gray-500">
                 <li>微信已正确安装</li>
                 <li>微信安装在默认路径</li>
@@ -94,7 +88,7 @@ export default function WeChatPage({ onOptimizableSpaceUpdate }: WeChatPageProps
 
             <div className="flex flex-col items-center justify-center py-10">
               <Loader2 size={48} className="text-primary animate-spin mb-4" />
-              <p className="text-gray-600 mb-2">🔍 正在扫描微信数据...</p>
+              <p className="text-gray-600 mb-2">正在扫描微信数据...</p>
               
               <div className="w-full max-w-md mt-4">
                 <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
@@ -217,8 +211,8 @@ export default function WeChatPage({ onOptimizableSpaceUpdate }: WeChatPageProps
             <div className="bg-green-50 rounded-lg p-4 flex items-start gap-3">
               <CheckCircle size={20} className="text-green-600 flex-shrink-0 mt-0.5" />
               <div className="text-sm">
-                <p className="font-medium text-green-700 mb-1">✅ 微信数据占用较小，暂无需迁移</p>
-                <p className="text-gray-600">💡 建议定期清理微信缓存以节省空间</p>
+                <p className="font-medium text-green-700 mb-1">微信数据占用较小，暂无需迁移</p>
+                <p className="text-gray-600">建议定期清理微信缓存以节省空间</p>
               </div>
             </div>
 
@@ -250,11 +244,11 @@ export default function WeChatPage({ onOptimizableSpaceUpdate }: WeChatPageProps
 
             <div className="flex flex-col items-center justify-center py-10">
               <AlertTriangle size={48} className="text-red-500 mb-4" />
-              <p className="text-gray-700 font-medium mb-2">⚠️ 无法打开微信</p>
+              <p className="text-gray-700 font-medium mb-2">无法打开微信</p>
               <p className="text-sm text-gray-500 mb-6">微信程序未响应或路径错误</p>
               
               <div className="text-sm text-gray-600 mb-6">
-                <p className="mb-2">💡 请尝试：</p>
+                <p className="mb-2">请尝试：</p>
                 <ul className="list-disc list-inside space-y-1 text-gray-500">
                   <li>手动启动微信</li>
                   <li>检查微信是否正确安装</li>
