@@ -1,10 +1,14 @@
 import { useState } from 'react';
-import { Search, Play, RefreshCw, FileSearch } from 'lucide-react';
+import { Search, Play, RefreshCw, FileSearch, Database, Download, Film, FileText, Archive, Disc, Folder, File } from 'lucide-react';
 import type { LargeFileCategory, LargeFileInfo, CategoryStats, LargeFilePageState } from '@/types';
 import WailsAPI from '@/utils/wails';
 import ConfirmDialog from '@/components/Common/ConfirmDialog';
 
-export default function LargeFilePage() {
+interface LargeFilePageProps {
+  onOptimizableSpaceUpdate?: (size: number) => void;
+}
+
+export default function LargeFilePage({ onOptimizableSpaceUpdate }: LargeFilePageProps = {}) {
   // 页面状态
   const [pageState, setPageState] = useState<LargeFilePageState>('idle');
   
@@ -64,21 +68,27 @@ export default function LargeFilePage() {
     return names[category];
   };
 
-  const getCategoryIcon = (category: LargeFileCategory): string => {
-    const icons: Record<LargeFileCategory, string> = {
-      all: '📊',
-      download: '📥',
-      media: '🎬',
-      document: '📄',
-      archive: '📦',
-      installer: '💾',
-      other: '📁',
-    };
-    return icons[category];
-  };
-
-  const getFileIcon = (category: LargeFileCategory): string => {
-    return getCategoryIcon(category);
+  const getCategoryIcon = (category: LargeFileCategory, size: number = 16) => {
+    const iconProps = { size, className: "text-gray-600" };
+    
+    switch (category) {
+      case 'all':
+        return <Database {...iconProps} />;
+      case 'download':
+        return <Download {...iconProps} />;
+      case 'media':
+        return <Film {...iconProps} />;
+      case 'document':
+        return <FileText {...iconProps} />;
+      case 'archive':
+        return <Archive {...iconProps} />;
+      case 'installer':
+        return <Disc {...iconProps} />;
+      case 'other':
+        return <Folder {...iconProps} />;
+      default:
+        return <File {...iconProps} />;
+    }
   };
 
   // 事件处理函数
@@ -99,8 +109,13 @@ export default function LargeFilePage() {
         const totalFiles = result.stats.find((s: any) => s.category === 'all')?.fileCount || result.files.length;
         setScanProgress({ scanned: totalFiles, found: result.files.length });
         setPageState(result.files.length > 0 ? 'scanned' : 'empty');
+
+        // 计算并更新可优化空间（所有大文件的总大小）
+        const totalSize = result.files.reduce((sum: number, file: LargeFileInfo) => sum + file.size, 0);
+        onOptimizableSpaceUpdate?.(totalSize);
       } else {
         setPageState('empty');
+        onOptimizableSpaceUpdate?.(0);
       }
     } catch (error) {
       console.error('扫描失败:', error);
@@ -294,7 +309,7 @@ export default function LargeFilePage() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between mb-0.5">
                   <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <span className="text-xl flex-shrink-0">{getFileIcon(file.category)}</span>
+                    <span className="flex items-center justify-center text-xl flex-shrink-0 w-6 h-6">{getCategoryIcon(file.category)}</span>
                     <span className="text-sm font-medium text-gray-800 truncate">{file.name}</span>
                   </div>
                   <span className="text-base font-semibold text-gray-700 ml-3 flex-shrink-0">{formatSize(file.size)}</span>
@@ -390,7 +405,7 @@ export default function LargeFilePage() {
                 }
               `}
             >
-              <div className="text-2xl mb-1">{getCategoryIcon(stat.category)}</div>
+              <div className="flex justify-center text-2xl mb-1">{getCategoryIcon(stat.category, 24)}</div>
               <div className="font-medium text-sm">{getCategoryName(stat.category)}</div>
               <div className="text-xs text-gray-500 mt-1">{formatSize(stat.totalSize)}</div>
               <div className="text-xs text-gray-400">{stat.fileCount} 个</div>

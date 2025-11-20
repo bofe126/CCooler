@@ -313,7 +313,7 @@ export const WailsAPI = {
       return await window.go.main.App.SelectFolder();
     }
     // 开发环境返回模拟路径（使用当前用户的桌面）
-    return 'C:\\Users\\' + (process.env.USERNAME || 'User') + '\\Desktop';
+    return 'C:\\Users\\User\\Desktop';
   },
 };
 

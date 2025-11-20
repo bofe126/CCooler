@@ -3,7 +3,11 @@ import { RefreshCw, AlertCircle, CheckCircle, HardDrive, Database, History } fro
 import type { SystemOptimizeItem } from '@/types';
 import WailsAPI from '@/utils/wails';
 
-export default function OptimizePage() {
+interface OptimizePageProps {
+  onOptimizableSpaceUpdate?: (size: number) => void;
+}
+
+export default function OptimizePage({ onOptimizableSpaceUpdate }: OptimizePageProps = {}) {
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<SystemOptimizeItem[]>([]);
   const [totalSize, setTotalSize] = useState(0);
@@ -42,9 +46,13 @@ export default function OptimizePage() {
       const result = await WailsAPI.scanSystemOptimize();
       setItems(result.items || []);
       setTotalSize(result.totalSize || 0);
+
+      // 更新可优化空间（可释放的总空间）
+      onOptimizableSpaceUpdate?.(result.totalSize || 0);
     } catch (error) {
       console.error('扫描失败:', error);
       alert('扫描失败: ' + error);
+      onOptimizableSpaceUpdate?.(0);
     } finally {
       setLoading(false);
     }

@@ -3,7 +3,11 @@ import { Loader2, RefreshCw, AlertTriangle } from 'lucide-react';
 import WailsAPI from '@/utils/wails';
 import type { SoftwareInfo, SoftwarePageState } from '@/types';
 
-export default function SoftwarePage() {
+interface SoftwarePageProps {
+  onOptimizableSpaceUpdate?: (size: number) => void;
+}
+
+export default function SoftwarePage({ onOptimizableSpaceUpdate }: SoftwarePageProps = {}) {
   const [pageState, setPageState] = useState<SoftwarePageState>('loading');
   const [softwareList, setSoftwareList] = useState<SoftwareInfo[]>([]);
   const [scanProgress, setScanProgress] = useState(0);
@@ -60,8 +64,13 @@ export default function SoftwarePage() {
       if (software && software.length > 0) {
         setSoftwareList(software);
         setPageState('loaded');
+
+        // 计算并更新可优化空间（软件总大小）
+        const totalSize = software.reduce((sum: number, soft: SoftwareInfo) => sum + soft.size, 0);
+        onOptimizableSpaceUpdate?.(totalSize);
       } else {
         setPageState('empty');
+        onOptimizableSpaceUpdate?.(0);
       }
     } catch (error) {
       clearInterval(progressInterval);
@@ -76,7 +85,7 @@ export default function SoftwarePage() {
   }, []);
 
   const getTotalSize = (): number => {
-    return softwareList.reduce((sum, soft) => sum + soft.size, 0);
+    return softwareList.reduce((sum: number, soft: SoftwareInfo) => sum + soft.size, 0);
   };
 
   const renderContent = () => {

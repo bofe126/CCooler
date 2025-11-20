@@ -3,7 +3,11 @@ import { Loader2, RefreshCw, AlertTriangle, CheckCircle } from 'lucide-react';
 import WailsAPI from '@/utils/wails';
 import type { WeChatData, WeChatPageState } from '@/types';
 
-export default function WeChatPage() {
+interface WeChatPageProps {
+  onOptimizableSpaceUpdate?: (size: number) => void;
+}
+
+export default function WeChatPage({ onOptimizableSpaceUpdate }: WeChatPageProps = {}) {
   const [pageState, setPageState] = useState<WeChatPageState>('scanning');
   const [wechatData, setWechatData] = useState<WeChatData | null>(null);
 
@@ -22,6 +26,9 @@ export default function WeChatPage() {
       
       setWechatData(data);
       
+      // 更新可优化空间（微信数据总大小）
+      onOptimizableSpaceUpdate?.(data.total || 0);
+      
       // 判断数据大小
       if (data.total < 1 * 1024 ** 3) {
         setPageState('small-data');
@@ -31,6 +38,7 @@ export default function WeChatPage() {
     } catch (error) {
       console.error('Failed to detect WeChat:', error);
       setPageState('not-found');
+      onOptimizableSpaceUpdate?.(0);
     }
   };
 

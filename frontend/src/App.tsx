@@ -13,6 +13,24 @@ function App() {
   const [cleanedSize, setCleanedSize] = useState<number>(0);
   const [showCleanedTip, setShowCleanedTip] = useState<boolean>(false);
 
+  // 可优化空间状态
+  const [optimizableSpace, setOptimizableSpace] = useState<Record<PageType, number>>({
+    clean: 0,
+    desktop: 0,
+    largefile: 0,
+    optimize: 0,
+    software: 0,
+    wechat: 0,
+  });
+
+  // 更新可优化空间
+  const updateOptimizableSpace = (page: PageType, size: number) => {
+    setOptimizableSpace(prev => ({
+      ...prev,
+      [page]: size
+    }));
+  };
+
   const renderPage = () => {
     switch (currentPage) {
       case 'clean':
@@ -25,18 +43,19 @@ function App() {
             onCleanStart={() => {
               setShowCleanedTip(false);
             }}
+            onOptimizableSpaceUpdate={(size) => updateOptimizableSpace('clean', size)}
           />
         );
       case 'desktop':
-        return <DesktopPage />;
+        return <DesktopPage onOptimizableSpaceUpdate={(size) => updateOptimizableSpace('desktop', size)} />;
       case 'largefile':
-        return <LargeFilePage />;
+        return <LargeFilePage onOptimizableSpaceUpdate={(size) => updateOptimizableSpace('largefile', size)} />;
       case 'optimize':
-        return <OptimizePage />;
+        return <OptimizePage onOptimizableSpaceUpdate={(size) => updateOptimizableSpace('optimize', size)} />;
       case 'software':
-        return <SoftwarePage />;
+        return <SoftwarePage onOptimizableSpaceUpdate={(size) => updateOptimizableSpace('software', size)} />;
       case 'wechat':
-        return <WeChatPage />;
+        return <WeChatPage onOptimizableSpaceUpdate={(size) => updateOptimizableSpace('wechat', size)} />;
       default:
         return <CleanPage onCleanComplete={() => {}} onCleanStart={() => {}} />;
     }
@@ -48,6 +67,7 @@ function App() {
       onPageChange={setCurrentPage}
       cleanedSize={cleanedSize}
       showCleanedTip={showCleanedTip}
+      optimizableSpace={optimizableSpace}
     >
       {renderPage()}
     </MainLayout>

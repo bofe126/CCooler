@@ -10,6 +10,7 @@ interface MainLayoutProps {
   children: ReactNode;
   cleanedSize?: number;
   showCleanedTip?: boolean;
+  optimizableSpace?: Record<PageType, number>;
 }
 
 export default function MainLayout({ 
@@ -17,7 +18,8 @@ export default function MainLayout({
   onPageChange, 
   children,
   cleanedSize = 0,
-  showCleanedTip = false
+  showCleanedTip = false,
+  optimizableSpace
 }: MainLayoutProps) {
   // 磁盘信息
   const [diskInfo, setDiskInfo] = useState<DiskInfo>({
@@ -93,7 +95,7 @@ export default function MainLayout({
       {/* 主体区域 */}
       <div className="flex-1 flex overflow-hidden">
         {/* 左侧边栏 */}
-        <Sidebar currentPage={currentPage} onPageChange={onPageChange} />
+        <Sidebar currentPage={currentPage} onPageChange={onPageChange} optimizableSpace={optimizableSpace} />
 
         {/* 右侧内容区域 */}
         <div className="flex-1 overflow-auto bg-gray-50">

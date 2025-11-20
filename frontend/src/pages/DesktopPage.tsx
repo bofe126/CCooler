@@ -4,7 +4,11 @@ import type { DesktopFileInfo, DesktopFileType, DesktopPageState } from '@/types
 import { WailsAPI } from '@/utils/wails';
 import ConfirmDialog from '@/components/Common/ConfirmDialog';
 
-export default function DesktopPage() {
+interface DesktopPageProps {
+  onOptimizableSpaceUpdate?: (size: number) => void;
+}
+
+export default function DesktopPage({ onOptimizableSpaceUpdate }: DesktopPageProps = {}) {
   // 页面状态
   const [pageState, setPageState] = useState<DesktopPageState>('scanning');
   
@@ -16,14 +20,6 @@ export default function DesktopPage() {
   
   // 选中的文件ID
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
-  
-  // 统计信息
-  const [stats, setStats] = useState({
-    shortcuts: 0,
-    files: 0,
-    folders: 0,
-    totalSize: 0,
-  });
   
   // 对话框状态
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -80,21 +76,16 @@ export default function DesktopPage() {
         setDesktopPath(desktopDir);
       } else if (!desktopPath) {
         // 如果没有文件，尝试获取默认桌面路径
-        setDesktopPath('C:\\Users\\' + (process.env.USERNAME || 'User') + '\\Desktop');
+        setDesktopPath('C:\\Users\\User\\Desktop');
       }
       
       setFiles(result);
       
-      // 计算统计
-      const newStats = {
-        shortcuts: result.filter((f: DesktopFileInfo) => f.type === 'shortcut').length,
-        files: result.filter((f: DesktopFileInfo) => f.type === 'file').length,
-        folders: result.filter((f: DesktopFileInfo) => f.type === 'folder').length,
-        totalSize: result.reduce((sum: number, f: DesktopFileInfo) => sum + f.size, 0),
-      };
-      setStats(newStats);
-      
       setPageState(result.length > 0 ? 'scanned' : 'empty');
+
+      // 计算并更新可优化空间（桌面文件总大小）
+      const totalSize = result.reduce((sum: number, f: DesktopFileInfo) => sum + f.size, 0);
+      onOptimizableSpaceUpdate?.(totalSize);
     } catch (error) {
       console.error('扫描失败:', error);
       alert('扫描失败: ' + error);
@@ -158,15 +149,6 @@ export default function DesktopPage() {
           const remainingFiles = files.filter(f => f.id !== file.id);
           setFiles(remainingFiles);
           
-          // 重新计算统计
-          const newStats = {
-            shortcuts: remainingFiles.filter(f => f.type === 'shortcut').length,
-            files: remainingFiles.filter(f => f.type === 'file').length,
-            folders: remainingFiles.filter(f => f.type === 'folder').length,
-            totalSize: remainingFiles.reduce((sum, f) => sum + f.size, 0),
-          };
-          setStats(newStats);
-          
           if (remainingFiles.length === 0) {
             setPageState('empty');
           }
@@ -205,15 +187,6 @@ export default function DesktopPage() {
           const remainingFiles = files.filter(file => !selectedFiles.has(file.id));
           setFiles(remainingFiles);
           setSelectedFiles(new Set());
-          
-          // 重新计算统计
-          const newStats = {
-            shortcuts: remainingFiles.filter(f => f.type === 'shortcut').length,
-            files: remainingFiles.filter(f => f.type === 'file').length,
-            folders: remainingFiles.filter(f => f.type === 'folder').length,
-            totalSize: remainingFiles.reduce((sum, f) => sum + f.size, 0),
-          };
-          setStats(newStats);
           
           if (remainingFiles.length === 0) {
             setPageState('empty');

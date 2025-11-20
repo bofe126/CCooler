@@ -8,11 +8,23 @@ import type { CleanItem, CleanPageState } from '@/types';
 interface CleanPageProps {
   onCleanComplete: (size: number) => void;
   onCleanStart: () => void;
+  onOptimizableSpaceUpdate?: (size: number) => void;
 }
 
-export default function CleanPage({ onCleanComplete, onCleanStart }: CleanPageProps) {
+export default function CleanPage({ onCleanComplete, onCleanStart, onOptimizableSpaceUpdate }: CleanPageProps) {
   // 实际清理的大小
   const [cleanedSize, setCleanedSize] = useState<number>(0);
+
+  // 清理项列表
+  const [cleanItems, setCleanItems] = useState<CleanItem[]>([
+    { id: '1', name: '系统临时文件', size: 0, fileCount: 0, checked: true, safe: true, status: 'idle' },
+    { id: '2', name: '浏览器缓存', size: 0, fileCount: 0, checked: true, safe: true, status: 'idle' },
+    { id: '3', name: '回收站', size: 0, fileCount: 0, checked: true, safe: true, status: 'idle' },
+    { id: '4', name: 'Windows更新缓存', size: 0, fileCount: 0, checked: true, safe: true, status: 'idle' },
+    { id: '5', name: '系统文件清理', size: 0, fileCount: 0, checked: true, safe: true, status: 'idle' },
+    { id: '6', name: '应用缓存', size: 0, fileCount: 0, checked: false, safe: false, status: 'idle' },
+    { id: '7', name: '应用日志文件', size: 0, fileCount: 0, checked: false, safe: false, status: 'idle' },
+  ]);
 
   // 自动开始扫描
   useEffect(() => {
@@ -56,27 +68,26 @@ export default function CleanPage({ onCleanComplete, onCleanStart }: CleanPagePr
       // 等待所有扫描完成
       await Promise.all(scanPromises);
       setPageState('scan-complete');
+
+      // 计算并更新可优化空间
+      const totalOptimizable = getTotalCleanableSize();
+      onOptimizableSpaceUpdate?.(totalOptimizable);
     };
     
     autoScan();
   }, []);
+
+  // 页面加载时立即更新可优化空间（用于显示在导航栏中）
+  useEffect(() => {
+    const totalOptimizable = getTotalCleanableSize();
+    onOptimizableSpaceUpdate?.(totalOptimizable);
+  }, [cleanItems]);
 
   // 页面状态
   const [pageState, setPageState] = useState<CleanPageState>('initial');
 
   // 详情面板
   const [selectedItem, setSelectedItem] = useState<CleanItem | null>(null);
-
-  // 清理项列表
-  const [cleanItems, setCleanItems] = useState<CleanItem[]>([
-    { id: '1', name: '系统临时文件', size: 0, fileCount: 0, checked: true, safe: true, status: 'idle' },
-    { id: '2', name: '浏览器缓存', size: 0, fileCount: 0, checked: true, safe: true, status: 'idle' },
-    { id: '3', name: '回收站', size: 0, fileCount: 0, checked: true, safe: true, status: 'idle' },
-    { id: '4', name: 'Windows更新缓存', size: 0, fileCount: 0, checked: true, safe: true, status: 'idle' },
-    { id: '5', name: '系统文件清理', size: 0, fileCount: 0, checked: true, safe: true, status: 'idle' },
-    { id: '6', name: '应用缓存', size: 0, fileCount: 0, checked: false, safe: false, status: 'idle' },
-    { id: '7', name: '应用日志文件', size: 0, fileCount: 0, checked: false, safe: false, status: 'idle' },
-  ]);
 
   // 切换清理项选中状态
   const handleToggleItem = (id: string) => {
