@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import MainLayout from './components/Layout/MainLayout';
 import CleanPage from './pages/CleanPage';
+import DesktopPage from './pages/DesktopPage';
 import SoftwarePage from './pages/SoftwarePage';
 import WeChatPage from './pages/WeChatPage';
 import LargeFilePage from './pages/LargeFilePage';
@@ -26,6 +27,8 @@ function App() {
             }}
           />
         );
+      case 'desktop':
+        return <DesktopPage />;
       case 'largefile':
         return <LargeFilePage />;
       case 'optimize':

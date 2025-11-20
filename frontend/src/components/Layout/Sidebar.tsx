@@ -1,4 +1,4 @@
-import { Trash2, BarChart3, MessageSquare, HardDrive, Settings } from 'lucide-react';
+import { Trash2, BarChart3, MessageSquare, HardDrive, Settings, Monitor } from 'lucide-react';
 import type { PageType } from '@/types';
 
 interface SidebarProps {
@@ -12,6 +12,11 @@ export default function Sidebar({ currentPage, onPageChange }: SidebarProps) {
       id: 'clean' as PageType,
       icon: Trash2,
       label: '系统清理',
+    },
+    {
+      id: 'desktop' as PageType,
+      icon: Monitor,
+      label: '桌面清理',
     },
     {
       id: 'largefile' as PageType,
