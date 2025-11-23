@@ -25,7 +25,7 @@ declare global {
           ScanDesktop(desktopPath: string): Promise<any>;
           DeleteDesktopFile(filePath: string): Promise<void>;
           SelectFolder(): Promise<string>;
-          CleanItemElevated(itemID: string): Promise<ElevatedResult>;
+          CleanItemElevated(item: any): Promise<ElevatedResult>;
         };
       };
     };
@@ -335,9 +335,9 @@ export const WailsAPI = {
   },
 
   // 以管理员权限清理项目
-  cleanItemElevated: async (itemID: string): Promise<ElevatedResult> => {
+  cleanItemElevated: async (item: any): Promise<ElevatedResult> => {
     if (isWailsEnv()) {
-      return await window.go.main.App.CleanItemElevated(itemID);
+      return await window.go.main.App.CleanItemElevated(item);
     }
     // 开发环境模拟
     return {

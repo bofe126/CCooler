@@ -685,14 +685,30 @@ func (s *CleanService) EmptyRecycleBin() error {
 	ret, _, _ := emptyRecycleBin.Call(
 		0,
 		0,
-		0x00000001, // SHERB_NOCONFIRMATION
+		0x00000001|0x00000002, // SHERB_NOCONFIRMATION | SHERB_NOPROGRESSUI
 	)
 
-	if ret != 0 {
-		return fmt.Errorf("failed to empty recycle bin")
+	// HRESULT 返回值：
+	// S_OK (0x00000000) = 成功清空
+	// S_FALSE (0x00000001) = 回收站已经是空的
+	if ret == 0 || ret == 1 {
+		return nil
 	}
 
-	return nil
+	// 解析常见错误
+	var errMsg string
+	switch ret {
+	case 0x80070005: // E_ACCESSDENIED
+		errMsg = "权限不足，请以管理员身份运行"
+	case 0x8000FFFF: // E_UNEXPECTED
+		errMsg = "回收站被占用或系统状态异常，请关闭资源管理器中的回收站窗口后重试"
+	case 0x80004005: // E_FAIL
+		errMsg = "操作失败"
+	default:
+		errMsg = fmt.Sprintf("未知错误 (HRESULT: 0x%X)", ret)
+	}
+
+	return fmt.Errorf("%s", errMsg)
 }
 
 // OpenFolder 使用资源管理器打开文件夹

@@ -230,7 +230,7 @@ export default function CleanPage({ isFirstVisit = true, onCleanComplete, onClea
           )
         );
         
-        const result = await WailsAPI.cleanItemElevated(item.id);
+        const result = await WailsAPI.cleanItemElevated(item);
         
         if (result.success) {
           totalCleanedSize += result.cleanedSize;
@@ -242,7 +242,15 @@ export default function CleanPage({ isFirstVisit = true, onCleanComplete, onClea
             )
           );
         } else {
-          throw new Error(result.error);
+          // 标记为错误，但继续清理其他项目
+          console.error(`清理项目 ${item.id} 失败:`, result.error);
+          setCleanItems(prev =>
+            prev.map(i =>
+              i.id === item.id
+                ? { ...i, status: 'error', error: result.error }
+                : i
+            )
+          );
         }
       }
       
@@ -448,6 +456,43 @@ export default function CleanPage({ isFirstVisit = true, onCleanComplete, onClea
                 </div>
               </div>
             )}
+
+            {/* 清理项目状态列表 */}
+            <div className="bg-white rounded-lg shadow-sm max-h-[300px] overflow-y-auto">
+              <div className="p-3 border-b border-gray-200 bg-gray-50">
+                <h3 className="text-sm font-semibold text-gray-700">清理状态</h3>
+              </div>
+              <div className="p-3 space-y-2">
+                {cleanItems.filter(item => item.checked).map((item) => (
+                  <div key={item.id} className="flex items-center gap-2 text-sm">
+                    {item.status === 'completed' ? (
+                      <>
+                        <span className="text-green-600">✓</span>
+                        <span className="text-green-600">{item.name}</span>
+                      </>
+                    ) : item.status === 'error' ? (
+                      <>
+                        <span className="text-red-600">✗</span>
+                        <span className="text-red-600">{item.name}</span>
+                        {item.error && (
+                          <span className="text-xs text-red-500">({item.error})</span>
+                        )}
+                      </>
+                    ) : item.status === 'cleaning' ? (
+                      <>
+                        <Loader2 size={14} className="animate-spin text-primary" />
+                        <span className="text-primary">{item.name}</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-gray-400">○</span>
+                        <span className="text-gray-400">{item.name}</span>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
           </>
         );
 
@@ -494,20 +539,27 @@ export default function CleanPage({ isFirstVisit = true, onCleanComplete, onClea
                       {/* 路径详情 */}
                       {item.paths && item.paths.length > 0 ? (
                         item.paths.map((path, pathIndex) => (
-                          <div key={pathIndex} className="ml-4 text-gray-500 truncate">
+                          <div 
+                            key={pathIndex} 
+                            className={`ml-4 truncate ${
+                              item.status === 'error' ? 'text-red-400' : 'text-gray-500'
+                            }`}
+                          >
                             - {path.path} ({formatSize(path.size)})
                           </div>
                         ))
                       ) : (
-                        <div className="ml-4 text-gray-500">
-                          - 已清理 {formatSize(item.size)}
+                        <div className={`ml-4 ${
+                          item.status === 'error' ? 'text-red-400' : 'text-gray-500'
+                        }`}>
+                          - {item.status === 'completed' ? '已清理' : '目标大小'} {formatSize(item.size)}
                         </div>
                       )}
                       
                       {/* 错误信息 */}
                       {item.error && (
-                        <div className="ml-4 text-red-500 text-xs mt-1">
-                          错误: {item.error}
+                        <div className="ml-4 text-red-500 text-xs mt-1 bg-red-50 px-2 py-1 rounded">
+                          ⚠ {item.error}
                         </div>
                       )}
                     </div>

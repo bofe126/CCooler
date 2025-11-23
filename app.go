@@ -191,7 +191,7 @@ func (a *App) ScanSingleCleanItem(itemID string) (*models.CleanItem, error) {
 	return item, nil
 }
 
-// CleanItems 清理选中的项目（普通权限项目，不包括需要管理员权限的4和5）
+// CleanItems 清理选中的项目（统一使用扫描结果中的路径）
 func (a *App) CleanItems(items []*models.CleanItem) error {
 	fmt.Printf("[DEBUG] CleanItems called with %d items\n", len(items))
 
@@ -211,48 +211,11 @@ func (a *App) CleanItems(items []*models.CleanItem) error {
 
 		fmt.Printf("[DEBUG] Cleaning item %s: %s\n", item.ID, item.Name)
 
-		var err error
-
-		switch item.ID {
-		case "1": // 系统临时文件
-			tempPath := a.cleanService.GetTempPath()
-			fmt.Printf("[DEBUG] Cleaning user temp: %s\n", tempPath)
-			cleaned1, err := a.cleanService.CleanFolderSafe(tempPath)
-			if err != nil {
-				fmt.Printf("[DEBUG] User temp clean failed: %v\n", err)
-			} else {
-				fmt.Printf("[DEBUG] User temp cleaned: %d bytes\n", cleaned1)
-			}
-
-			sysTempPath := a.cleanService.GetSystemTempPath()
-			fmt.Printf("[DEBUG] Cleaning system temp: %s\n", sysTempPath)
-			cleaned2, err := a.cleanService.CleanFolderSafe(sysTempPath)
-			if err != nil {
-				fmt.Printf("[DEBUG] System temp clean failed: %v\n", err)
-			} else {
-				fmt.Printf("[DEBUG] System temp cleaned: %d bytes\n", cleaned2)
-			}
-
-		case "2": // 浏览器缓存
-			fmt.Printf("[DEBUG] Getting browser cache paths...\n")
-			paths := a.cleanService.GetBrowserCachePaths()
-			fmt.Printf("[DEBUG] Found %d browser cache paths\n", len(paths))
-			var totalCleaned int64
-			for i, path := range paths {
-				fmt.Printf("[DEBUG] Cleaning browser cache [%d/%d]: %s\n", i+1, len(paths), path)
-				cleaned, err := a.cleanService.CleanFolderSafe(path)
-				if err != nil {
-					fmt.Printf("[DEBUG] Failed to clean %s: %v\n", path, err)
-				} else {
-					fmt.Printf("[DEBUG] Cleaned %s: %d bytes\n", path, cleaned)
-					totalCleaned += cleaned
-				}
-			}
-			fmt.Printf("[DEBUG] Browser cache cleaned: %d bytes total\n", totalCleaned)
-
-		case "3": // 回收站
+		// 特殊处理：回收站和日志文件
+		if item.ID == "3" {
+			// 回收站使用特殊API
 			fmt.Printf("[DEBUG] Emptying recycle bin...\n")
-			err = a.cleanService.EmptyRecycleBin()
+			err := a.cleanService.EmptyRecycleBin()
 			if err != nil {
 				fmt.Printf("[DEBUG] Recycle bin empty failed: %v\n", err)
 				item.Status = "error"
@@ -260,37 +223,65 @@ func (a *App) CleanItems(items []*models.CleanItem) error {
 				continue
 			}
 			fmt.Printf("[DEBUG] Recycle bin emptied successfully\n")
-
-		case "6": // 应用缓存
-			fmt.Printf("[DEBUG] Getting app cache paths...\n")
-			cacheDirs := a.cleanService.GetAppCachePaths()
-			fmt.Printf("[DEBUG] Found %d app cache paths\n", len(cacheDirs))
-			var totalCleaned int64
-			for i, dir := range cacheDirs {
-				fmt.Printf("[DEBUG] Cleaning app cache [%d/%d]: %s\n", i+1, len(cacheDirs), dir)
-				cleaned, err := a.cleanService.CleanFolderSafe(dir)
-				if err != nil {
-					fmt.Printf("[DEBUG] Failed to clean %s: %v\n", dir, err)
-				} else {
-					fmt.Printf("[DEBUG] Cleaned %s: %d bytes\n", dir, cleaned)
-					totalCleaned += cleaned
-				}
-			}
-			fmt.Printf("[DEBUG] App cache cleaned: %d bytes total\n", totalCleaned)
-
-		case "7": // 应用日志文件
-			cleanedSize, cleanedCount, err := a.cleanService.CleanLogFiles()
-			if err != nil {
-				item.Status = "error"
-				item.Error = "清理日志文件失败: " + err.Error()
-				continue
-			}
-			item.Size = cleanedSize
-			item.FileCount = cleanedCount
+			item.Status = "completed"
+			continue
 		}
 
-		item.Status = "completed"
-		fmt.Printf("[DEBUG] Item %s cleaned successfully\n", item.ID)
+		if item.ID == "7" {
+			// 日志文件：使用扫描结果中的路径
+			fmt.Printf("[DEBUG] Using %d log paths from scan results\n", len(item.Paths))
+			var totalCleaned int64
+			var totalCount int
+			for i, pathDetail := range item.Paths {
+				fmt.Printf("[DEBUG] Cleaning log path [%d/%d]: %s\n", i+1, len(item.Paths), pathDetail.Path)
+				cleaned, count := a.cleanLogFilesInPath(pathDetail.Path)
+				totalCleaned += cleaned
+				totalCount += count
+				fmt.Printf("[DEBUG] Cleaned %s: %d bytes, %d files\n", pathDetail.Path, cleaned, count)
+			}
+			item.Size = totalCleaned
+			item.FileCount = totalCount
+			item.Status = "completed"
+			fmt.Printf("[DEBUG] Log files cleaned: %d bytes, %d files total\n", totalCleaned, totalCount)
+			continue
+		}
+
+		// 统一处理：使用扫描结果中的路径
+		fmt.Printf("[DEBUG] Using %d paths from scan results\n", len(item.Paths))
+		var paths []string
+		for _, pathDetail := range item.Paths {
+			paths = append(paths, pathDetail.Path)
+		}
+
+		if len(paths) == 0 {
+			fmt.Printf("[DEBUG] No paths to clean for item %s\n", item.ID)
+			item.Status = "completed"
+			continue
+		}
+
+		// 清理所有路径
+		var totalCleaned int64
+		hasError := false
+		for i, path := range paths {
+			fmt.Printf("[DEBUG] Cleaning path [%d/%d]: %s\n", i+1, len(paths), path)
+			cleaned, err := a.cleanService.CleanFolderSafe(path)
+			if err != nil {
+				fmt.Printf("[DEBUG] Failed to clean %s: %v\n", path, err)
+				hasError = true
+			} else {
+				fmt.Printf("[DEBUG] Cleaned %s: %d bytes\n", path, cleaned)
+				totalCleaned += cleaned
+			}
+		}
+
+		if hasError {
+			item.Status = "error"
+			item.Error = "部分路径清理失败（文件可能正在使用）"
+		} else {
+			item.Status = "completed"
+		}
+
+		fmt.Printf("[DEBUG] Item %s cleaned: %d bytes total\n", item.ID, totalCleaned)
 	}
 
 	fmt.Printf("[DEBUG] CleanItems completed\n")
@@ -378,10 +369,13 @@ func (a *App) SelectFolder() (string, error) {
 }
 
 // CleanItemElevated 以管理员权限清理项目
-func (a *App) CleanItemElevated(itemID string) (*ElevatedResult, error) {
-	// itemID=7 (应用日志文件) 使用特殊处理，不通过辅助程序
-	if itemID == "7" {
-		cleanedSize, cleanedCount, err := a.cleanService.CleanLogFiles()
+func (a *App) CleanItemElevated(item *models.CleanItem) (*ElevatedResult, error) {
+	itemID := item.ID
+
+	// itemID=3 (回收站) 使用特殊API
+	if itemID == "3" {
+		fmt.Printf("[DEBUG] Emptying recycle bin...\n")
+		err := a.cleanService.EmptyRecycleBin()
 		if err != nil {
 			return &ElevatedResult{
 				Success: false,
@@ -389,9 +383,25 @@ func (a *App) CleanItemElevated(itemID string) (*ElevatedResult, error) {
 			}, nil
 		}
 		return &ElevatedResult{
+			Success: true,
+		}, nil
+	}
+
+	// itemID=7 (应用日志文件) 使用特殊处理，不通过辅助程序
+	if itemID == "7" {
+		// 使用扫描结果中的路径
+		fmt.Printf("[DEBUG] Using %d log paths from scan results\n", len(item.Paths))
+		var totalCleaned int64
+		var totalCount int
+		for _, pathDetail := range item.Paths {
+			cleaned, count := a.cleanLogFilesInPath(pathDetail.Path)
+			totalCleaned += cleaned
+			totalCount += count
+		}
+		return &ElevatedResult{
 			Success:      true,
-			CleanedSize:  cleanedSize,
-			CleanedCount: cleanedCount,
+			CleanedSize:  totalCleaned,
+			CleanedCount: totalCount,
 		}, nil
 	}
 
@@ -403,17 +413,16 @@ func (a *App) CleanItemElevated(itemID string) (*ElevatedResult, error) {
 	if isElevated {
 		// 已经提升了权限，直接执行（不会弹UAC）
 		fmt.Println("[DEBUG] Already elevated, executing directly")
-		return a.cleanItemDirect(itemID)
+		return a.cleanItemDirect(item)
 	}
 
 	// 2. 获取要清理的路径列表
-	if isAdmin {
-		fmt.Println("[DEBUG] User is admin but not elevated, need to elevate via UAC")
-	} else {
-		fmt.Println("[DEBUG] User is not admin, need to elevate via UAC")
+	fmt.Printf("[DEBUG] Using %d paths from scan results\n", len(item.Paths))
+	var paths []string
+	for _, pathDetail := range item.Paths {
+		paths = append(paths, pathDetail.Path)
 	}
 
-	paths := a.getCleanPaths(itemID)
 	if len(paths) == 0 {
 		return nil, fmt.Errorf("没有找到要清理的路径")
 	}
@@ -570,11 +579,41 @@ func (a *App) shellExecuteElevated(exePath, args string) error {
 	return nil
 }
 
-// cleanItemDirect 直接清理（已有管理员权限）
-func (a *App) cleanItemDirect(itemID string) (*ElevatedResult, error) {
-	result := &ElevatedResult{Success: true}
+// cleanLogFilesInPath 清理指定路径下的所有 .log 文件
+func (a *App) cleanLogFilesInPath(dirPath string) (int64, int) {
+	var cleanedSize int64
+	var cleanedCount int
 
-	paths := a.getCleanPaths(itemID)
+	filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil // 跳过无权限的文件
+		}
+
+		if !info.IsDir() && filepath.Ext(path) == ".log" {
+			size := info.Size()
+			if err := os.Remove(path); err == nil {
+				cleanedSize += size
+				cleanedCount++
+			}
+		}
+		return nil
+	})
+
+	return cleanedSize, cleanedCount
+}
+
+// cleanItemDirect 直接清理（已有管理员权限）
+func (a *App) cleanItemDirect(item *models.CleanItem) (*ElevatedResult, error) {
+	result := &ElevatedResult{Success: true}
+	itemID := item.ID
+
+	// 使用扫描结果中的路径
+	fmt.Printf("[DEBUG] cleanItemDirect: Using %d paths from scan results\n", len(item.Paths))
+	var paths []string
+	for _, pathDetail := range item.Paths {
+		paths = append(paths, pathDetail.Path)
+	}
+
 	if len(paths) == 0 {
 		return nil, fmt.Errorf("unknown item: %s", itemID)
 	}
