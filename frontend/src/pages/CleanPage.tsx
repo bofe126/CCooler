@@ -7,12 +7,14 @@ import type { CleanItem, CleanPageState } from '@/types';
 import { formatSize } from '@/utils/formatters';
 
 interface CleanPageProps {
+  isFirstVisit?: boolean;
   onCleanComplete: (size: number) => void;
   onCleanStart: () => void;
   onOptimizableSpaceUpdate?: (size: number) => void;
+  onScanComplete?: () => void;
 }
 
-export default function CleanPage({ onCleanComplete, onCleanStart, onOptimizableSpaceUpdate }: CleanPageProps) {
+export default function CleanPage({ isFirstVisit = true, onCleanComplete, onCleanStart, onOptimizableSpaceUpdate, onScanComplete }: CleanPageProps) {
   // 实际清理的大小
   const [cleanedSize, setCleanedSize] = useState<number>(0);
 
@@ -27,8 +29,10 @@ export default function CleanPage({ onCleanComplete, onCleanStart, onOptimizable
     { id: '7', name: '应用日志文件', size: 0, fileCount: 0, checked: false, safe: false, status: 'idle' },
   ]);
 
-  // 自动开始扫描
+  // 首次访问时自动开始扫描
   useEffect(() => {
+    if (!isFirstVisit) return;
+
     const autoScan = async () => {
       // 自动开始扫描 - 使用独立线程扫描每个清理项
       setPageState('scanning');
@@ -73,10 +77,13 @@ export default function CleanPage({ onCleanComplete, onCleanStart, onOptimizable
       // 计算并更新可优化空间
       const totalOptimizable = getTotalCleanableSize();
       onOptimizableSpaceUpdate?.(totalOptimizable);
+      
+      // 通知父组件扫描完成
+      onScanComplete?.();
     };
     
     autoScan();
-  }, []);
+  }, [isFirstVisit]);
 
   // 页面加载时立即更新可优化空间（用于显示在导航栏中）
   useEffect(() => {
@@ -155,6 +162,9 @@ export default function CleanPage({ onCleanComplete, onCleanStart, onOptimizable
     // 等待所有扫描完成
     await Promise.all(scanPromises);
     setPageState('scan-complete');
+    
+    // 通知父组件扫描完成
+    onScanComplete?.();
   };
 
   // 开始清理

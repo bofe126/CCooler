@@ -4,10 +4,12 @@ import WailsAPI from '@/utils/wails';
 import type { SoftwareInfo, SoftwarePageState } from '@/types';
 
 interface SoftwarePageProps {
+  isFirstVisit?: boolean;
   onOptimizableSpaceUpdate?: (size: number) => void;
+  onScanComplete?: () => void;
 }
 
-export default function SoftwarePage({ onOptimizableSpaceUpdate }: SoftwarePageProps = {}) {
+export default function SoftwarePage({ isFirstVisit = true, onOptimizableSpaceUpdate, onScanComplete }: SoftwarePageProps = {}) {
   const [pageState, setPageState] = useState<SoftwarePageState>('loading');
   const [softwareList, setSoftwareList] = useState<SoftwareInfo[]>([]);
   const [scanProgress, setScanProgress] = useState(0);
@@ -68,6 +70,9 @@ export default function SoftwarePage({ onOptimizableSpaceUpdate }: SoftwarePageP
         // 计算并更新可优化空间（软件总大小）
         const totalSize = software.reduce((sum: number, soft: SoftwareInfo) => sum + soft.size, 0);
         onOptimizableSpaceUpdate?.(totalSize);
+        
+        // 通知父组件扫描完成
+        onScanComplete?.();
       } else {
         setPageState('empty');
         onOptimizableSpaceUpdate?.(0);
@@ -81,8 +86,10 @@ export default function SoftwarePage({ onOptimizableSpaceUpdate }: SoftwarePageP
   };
 
   useEffect(() => {
-    loadSoftware();
-  }, []);
+    if (isFirstVisit) {
+      loadSoftware();
+    }
+  }, [isFirstVisit]);
 
   const getTotalSize = (): number => {
     return softwareList.reduce((sum: number, soft: SoftwareInfo) => sum + soft.size, 0);

@@ -23,6 +23,9 @@ function App() {
     wechat: 0,
   });
 
+  // 跟踪哪些页面已经扫描过（首次访问时自动扫描，之后不再自动扫描）
+  const [scannedPages, setScannedPages] = useState<Set<PageType>>(new Set());
+
   // 更新可优化空间
   const updateOptimizableSpace = (page: PageType, size: number) => {
     setOptimizableSpace(prev => ({
@@ -31,34 +34,9 @@ function App() {
     }));
   };
 
-  const renderPage = () => {
-    switch (currentPage) {
-      case 'clean':
-        return (
-          <CleanPage 
-            onCleanComplete={(size) => {
-              setCleanedSize(size);
-              setShowCleanedTip(true);
-            }}
-            onCleanStart={() => {
-              setShowCleanedTip(false);
-            }}
-            onOptimizableSpaceUpdate={(size) => updateOptimizableSpace('clean', size)}
-          />
-        );
-      case 'desktop':
-        return <DesktopPage onOptimizableSpaceUpdate={(size) => updateOptimizableSpace('desktop', size)} />;
-      case 'largefile':
-        return <LargeFilePage onOptimizableSpaceUpdate={(size) => updateOptimizableSpace('largefile', size)} />;
-      case 'optimize':
-        return <OptimizePage onOptimizableSpaceUpdate={(size) => updateOptimizableSpace('optimize', size)} />;
-      case 'software':
-        return <SoftwarePage onOptimizableSpaceUpdate={(size) => updateOptimizableSpace('software', size)} />;
-      case 'wechat':
-        return <WeChatPage onOptimizableSpaceUpdate={(size) => updateOptimizableSpace('wechat', size)} />;
-      default:
-        return <CleanPage onCleanComplete={() => {}} onCleanStart={() => {}} />;
-    }
+  // 标记页面已扫描
+  const markPageAsScanned = (page: PageType) => {
+    setScannedPages(prev => new Set(prev).add(page));
   };
 
   return (
@@ -69,7 +47,59 @@ function App() {
       showCleanedTip={showCleanedTip}
       optimizableSpace={optimizableSpace}
     >
-      {renderPage()}
+      {/* 所有页面始终挂载，通过 display 控制可见性，允许后台扫描继续 */}
+      <div style={{ display: currentPage === 'clean' ? 'block' : 'none' }}>
+        <CleanPage 
+          isFirstVisit={!scannedPages.has('clean')}
+          onCleanComplete={(size) => {
+            setCleanedSize(size);
+            setShowCleanedTip(true);
+          }}
+          onCleanStart={() => {
+            setShowCleanedTip(false);
+          }}
+          onOptimizableSpaceUpdate={(size) => updateOptimizableSpace('clean', size)}
+          onScanComplete={() => markPageAsScanned('clean')}
+        />
+      </div>
+      
+      <div style={{ display: currentPage === 'desktop' ? 'block' : 'none' }}>
+        <DesktopPage 
+          isFirstVisit={!scannedPages.has('desktop')}
+          onOptimizableSpaceUpdate={(size) => updateOptimizableSpace('desktop', size)}
+          onScanComplete={() => markPageAsScanned('desktop')}
+        />
+      </div>
+      
+      <div style={{ display: currentPage === 'largefile' ? 'block' : 'none' }}>
+        <LargeFilePage 
+          onOptimizableSpaceUpdate={(size) => updateOptimizableSpace('largefile', size)}
+        />
+      </div>
+      
+      <div style={{ display: currentPage === 'optimize' ? 'block' : 'none' }}>
+        <OptimizePage 
+          isFirstVisit={!scannedPages.has('optimize')}
+          onOptimizableSpaceUpdate={(size) => updateOptimizableSpace('optimize', size)}
+          onScanComplete={() => markPageAsScanned('optimize')}
+        />
+      </div>
+      
+      <div style={{ display: currentPage === 'software' ? 'block' : 'none' }}>
+        <SoftwarePage 
+          isFirstVisit={!scannedPages.has('software')}
+          onOptimizableSpaceUpdate={(size) => updateOptimizableSpace('software', size)}
+          onScanComplete={() => markPageAsScanned('software')}
+        />
+      </div>
+      
+      <div style={{ display: currentPage === 'wechat' ? 'block' : 'none' }}>
+        <WeChatPage 
+          isFirstVisit={!scannedPages.has('wechat')}
+          onOptimizableSpaceUpdate={(size) => updateOptimizableSpace('wechat', size)}
+          onScanComplete={() => markPageAsScanned('wechat')}
+        />
+      </div>
     </MainLayout>
   );
 }

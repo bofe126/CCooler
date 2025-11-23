@@ -4,18 +4,22 @@ import type { SystemOptimizeItem } from '@/types';
 import WailsAPI from '@/utils/wails';
 
 interface OptimizePageProps {
+  isFirstVisit?: boolean;
   onOptimizableSpaceUpdate?: (size: number) => void;
+  onScanComplete?: () => void;
 }
 
-export default function OptimizePage({ onOptimizableSpaceUpdate }: OptimizePageProps = {}) {
+export default function OptimizePage({ isFirstVisit = true, onOptimizableSpaceUpdate, onScanComplete }: OptimizePageProps = {}) {
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<SystemOptimizeItem[]>([]);
   const [totalSize, setTotalSize] = useState(0);
 
-  // 页面加载时自动扫描
+  // 首次访问时自动扫描
   useEffect(() => {
-    handleScan();
-  }, []);
+    if (isFirstVisit) {
+      handleScan();
+    }
+  }, [isFirstVisit]);
 
   // 格式化大小
   const formatSize = (bytes: number): string => {
@@ -49,6 +53,9 @@ export default function OptimizePage({ onOptimizableSpaceUpdate }: OptimizePageP
 
       // 更新可优化空间（可释放的总空间）
       onOptimizableSpaceUpdate?.(result.totalSize || 0);
+      
+      // 通知父组件扫描完成
+      onScanComplete?.();
     } catch (error) {
       console.error('扫描失败:', error);
       alert('扫描失败: ' + error);

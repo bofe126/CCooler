@@ -5,10 +5,12 @@ import type { WeChatData, WeChatPageState } from '@/types';
 import { formatSize } from '@/utils/formatters';
 
 interface WeChatPageProps {
+  isFirstVisit?: boolean;
   onOptimizableSpaceUpdate?: (size: number) => void;
+  onScanComplete?: () => void;
 }
 
-export default function WeChatPage({ onOptimizableSpaceUpdate }: WeChatPageProps = {}) {
+export default function WeChatPage({ isFirstVisit = true, onOptimizableSpaceUpdate, onScanComplete }: WeChatPageProps = {}) {
   const [pageState, setPageState] = useState<WeChatPageState>('scanning');
   const [wechatData, setWechatData] = useState<WeChatData | null>(null);
 
@@ -22,6 +24,9 @@ export default function WeChatPage({ onOptimizableSpaceUpdate }: WeChatPageProps
       
       // 更新可优化空间（微信数据总大小）
       onOptimizableSpaceUpdate?.(data.total || 0);
+      
+      // 通知父组件扫描完成
+      onScanComplete?.();
       
       // 判断数据大小
       if (data.total < 1 * 1024 ** 3) {
@@ -37,8 +42,10 @@ export default function WeChatPage({ onOptimizableSpaceUpdate }: WeChatPageProps
   };
 
   useEffect(() => {
-    scanWeChatData();
-  }, []);
+    if (isFirstVisit) {
+      scanWeChatData();
+    }
+  }, [isFirstVisit]);
 
   const handleOpenWeChat = async () => {
     try {

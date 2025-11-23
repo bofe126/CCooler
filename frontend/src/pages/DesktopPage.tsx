@@ -5,10 +5,12 @@ import { WailsAPI } from '@/utils/wails';
 import ConfirmDialog from '@/components/Common/ConfirmDialog';
 
 interface DesktopPageProps {
+  isFirstVisit?: boolean;
   onOptimizableSpaceUpdate?: (size: number) => void;
+  onScanComplete?: () => void;
 }
 
-export default function DesktopPage({ onOptimizableSpaceUpdate }: DesktopPageProps = {}) {
+export default function DesktopPage({ isFirstVisit = true, onOptimizableSpaceUpdate, onScanComplete }: DesktopPageProps = {}) {
   // 页面状态
   const [pageState, setPageState] = useState<DesktopPageState>('scanning');
   
@@ -29,10 +31,12 @@ export default function DesktopPage({ onOptimizableSpaceUpdate }: DesktopPagePro
     onConfirm: () => void;
   }>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
 
-  // 页面加载时自动扫描
+  // 首次访问时自动扫描
   useEffect(() => {
-    handleScan();
-  }, [desktopPath]);
+    if (isFirstVisit) {
+      handleScan();
+    }
+  }, [isFirstVisit]);
 
   // 格式化大小
   const formatSize = (bytes: number): string => {
@@ -86,6 +90,9 @@ export default function DesktopPage({ onOptimizableSpaceUpdate }: DesktopPagePro
       // 计算并更新可优化空间（桌面文件总大小）
       const totalSize = result.reduce((sum: number, f: DesktopFileInfo) => sum + f.size, 0);
       onOptimizableSpaceUpdate?.(totalSize);
+      
+      // 通知父组件扫描完成
+      onScanComplete?.();
     } catch (error) {
       console.error('扫描失败:', error);
       alert('扫描失败: ' + error);
