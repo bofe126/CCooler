@@ -135,6 +135,36 @@ func (s *CleanService) GetWindowsUpdateCachePaths() []string {
 	}
 }
 
+// GetSystemFilePaths 获取系统文件清理路径
+func (s *CleanService) GetSystemFilePaths() []string {
+	return []string{
+		`C:\ProgramData\Microsoft\Windows\WER`,
+		filepath.Join(os.Getenv("LOCALAPPDATA"), `Microsoft\Windows\Explorer`),
+		`C:\Windows\Prefetch`,
+		`C:\Windows\Logs`,                                         // 系统日志（包含CBS、DISM、WindowsUpdate等）
+		`C:\Windows\Installer`,                                    // MSI 安装文件（通常几百MB到几GB）
+		`C:\ProgramData\Microsoft\Windows Defender\Scans\History`, // Defender 扫描历史
+	}
+}
+
+// GetAppCachePaths 获取应用缓存路径
+func (s *CleanService) GetAppCachePaths() []string {
+	localAppData := os.Getenv("LOCALAPPDATA")
+	userProfile := os.Getenv("USERPROFILE")
+	return []string{
+		filepath.Join(localAppData, "Temp"),
+		filepath.Join(localAppData, "Microsoft", "Windows", "INetCache"),
+		filepath.Join(localAppData, "CrashDumps"),
+		filepath.Join(localAppData, "Microsoft", "Windows", "WebCache"), // IE/Edge WebCache
+		filepath.Join(localAppData, "Microsoft", "Windows", "Caches"),   // Windows 应用缓存
+		filepath.Join(localAppData, "Packages"),                         // UWP 应用缓存（部分）
+		filepath.Join(userProfile, ".gradle", "caches"),                 // Gradle 缓存
+		filepath.Join(userProfile, ".m2", "repository"),                 // Maven 缓存
+		filepath.Join(localAppData, "pip", "cache"),                     // Python pip 缓存
+		filepath.Join(localAppData, "npm-cache"),                        // npm 缓存
+	}
+}
+
 // ScanLogFiles 扫描常见日志目录中的 .log 文件（优化版本）
 func (s *CleanService) ScanLogFiles() (int64, int, []string, error) {
 	var totalSize int64
@@ -514,31 +544,11 @@ func (s *CleanService) ScanSingleItem(item *models.CleanItem) {
 		s.scanPaths(item, paths)
 
 	case "5": // 系统文件清理
-		paths := []string{
-			`C:\ProgramData\Microsoft\Windows\WER`,
-			filepath.Join(os.Getenv("LOCALAPPDATA"), `Microsoft\Windows\Explorer`),
-			`C:\Windows\Prefetch`,
-			`C:\Windows\Logs`,                                         // 系统日志（包含CBS、DISM、WindowsUpdate等）
-			`C:\Windows\Installer`,                                    // MSI 安装文件（通常几百MB到几GB）
-			`C:\ProgramData\Microsoft\Windows Defender\Scans\History`, // Defender 扫描历史
-		}
+		paths := s.GetSystemFilePaths()
 		s.scanPaths(item, paths)
 
 	case "6": // 应用缓存
-		localAppData := os.Getenv("LOCALAPPDATA")
-		userProfile := os.Getenv("USERPROFILE")
-		paths := []string{
-			filepath.Join(localAppData, "Temp"),
-			filepath.Join(localAppData, "Microsoft", "Windows", "INetCache"),
-			filepath.Join(localAppData, "CrashDumps"),
-			filepath.Join(localAppData, "Microsoft", "Windows", "WebCache"), // IE/Edge WebCache
-			filepath.Join(localAppData, "Microsoft", "Windows", "Caches"),   // Windows 应用缓存
-			filepath.Join(localAppData, "Packages"),                         // UWP 应用缓存（部分）
-			filepath.Join(userProfile, ".gradle", "caches"),                 // Gradle 缓存
-			filepath.Join(userProfile, ".m2", "repository"),                 // Maven 缓存
-			filepath.Join(localAppData, "pip", "cache"),                     // Python pip 缓存
-			filepath.Join(localAppData, "npm-cache"),                        // npm 缓存
-		}
+		paths := s.GetAppCachePaths()
 		s.scanPaths(item, paths)
 
 	case "7": // 应用日志文件

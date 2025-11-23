@@ -4,9 +4,19 @@ import (
 	"ccooler/backend/models"
 	"ccooler/backend/services"
 	"context"
+	"encoding/json"
 	"fmt"
+	"net"
+	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
+	"syscall"
+	"time"
+	"unsafe"
+
+	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"golang.org/x/sys/windows"
 )
 
 // App struct
@@ -18,6 +28,30 @@ type App struct {
 	adminService     *services.AdminService
 	largeFileService *services.LargeFileService
 	optimizeService  *services.OptimizeService
+
+	// HTTP服务器用于接收辅助程序结果和进度
+	httpServer       *http.Server
+	httpPort         string
+	elevatedResults  map[string]chan *ElevatedResult
+	elevatedProgress map[string]chan *ElevatedProgress
+	resultsMutex     sync.Mutex
+}
+
+// ElevatedResult 提升权限执行结果
+type ElevatedResult struct {
+	Success      bool   `json:"success"`
+	Error        string `json:"error,omitempty"`
+	CleanedSize  int64  `json:"cleanedSize"`
+	CleanedCount int    `json:"cleanedCount"`
+}
+
+// ElevatedProgress 提升权限执行进度
+type ElevatedProgress struct {
+	ProcessedPaths int    `json:"processedPaths"`
+	TotalPaths     int    `json:"totalPaths"`
+	CleanedSize    int64  `json:"cleanedSize"`
+	CleanedCount   int    `json:"cleanedCount"`
+	CurrentPath    string `json:"currentPath"`
 }
 
 // NewApp creates a new App application struct
@@ -36,6 +70,87 @@ func NewApp() *App {
 // so we can call the runtime methods
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+	a.elevatedResults = make(map[string]chan *ElevatedResult)
+	a.elevatedProgress = make(map[string]chan *ElevatedProgress)
+
+	// 启动HTTP服务器接收辅助程序结果和进度
+	a.startHTTPServer()
+}
+
+func (a *App) startHTTPServer() error {
+	// 监听随机端口
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return err
+	}
+
+	a.httpPort = fmt.Sprintf("%d", listener.Addr().(*net.TCPAddr).Port)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/elevated-result", a.handleElevatedResult)
+	mux.HandleFunc("/elevated-progress", a.handleElevatedProgress)
+
+	a.httpServer = &http.Server{Handler: mux}
+
+	go func() {
+		a.httpServer.Serve(listener)
+	}()
+
+	return nil
+}
+
+func (a *App) handleElevatedResult(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var result ElevatedResult
+	if err := json.NewDecoder(r.Body).Decode(&result); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// 发送结果到等待的通道
+	a.resultsMutex.Lock()
+	for _, ch := range a.elevatedResults {
+		select {
+		case ch <- &result:
+			// 发送成功
+		default:
+			// 通道已满，跳过
+		}
+	}
+	a.resultsMutex.Unlock()
+
+	w.WriteHeader(http.StatusOK)
+}
+
+func (a *App) handleElevatedProgress(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var progress ElevatedProgress
+	if err := json.NewDecoder(r.Body).Decode(&progress); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// 发送进度到等待的通道
+	a.resultsMutex.Lock()
+	for _, ch := range a.elevatedProgress {
+		select {
+		case ch <- &progress:
+			// 发送成功
+		default:
+			// 通道已满，跳过
+		}
+	}
+	a.resultsMutex.Unlock()
+
+	w.WriteHeader(http.StatusOK)
 }
 
 // GetDiskInfo 获取磁盘信息
@@ -76,128 +191,92 @@ func (a *App) ScanSingleCleanItem(itemID string) (*models.CleanItem, error) {
 	return item, nil
 }
 
-// CleanItems 清理选中的项目
+// CleanItems 清理选中的项目（普通权限项目，不包括需要管理员权限的4和5）
 func (a *App) CleanItems(items []*models.CleanItem) error {
+	fmt.Printf("[DEBUG] CleanItems called with %d items\n", len(items))
+
 	for _, item := range items {
+		fmt.Printf("[DEBUG] Processing item: id=%s, name=%s, checked=%v\n", item.ID, item.Name, item.Checked)
+
 		if !item.Checked {
+			fmt.Printf("[DEBUG] Item %s not checked, skipping\n", item.ID)
 			continue
 		}
+
+		// 跳过需要管理员权限的项目（应该通过CleanItemElevated处理）
+		if item.ID == "4" || item.ID == "5" {
+			fmt.Printf("[DEBUG] Item %s needs admin, skipping\n", item.ID)
+			continue
+		}
+
+		fmt.Printf("[DEBUG] Cleaning item %s: %s\n", item.ID, item.Name)
 
 		var err error
 
 		switch item.ID {
 		case "1": // 系统临时文件
-			// 清理用户临时文件
 			tempPath := a.cleanService.GetTempPath()
-			err = a.cleanService.CleanFolder(tempPath)
+			fmt.Printf("[DEBUG] Cleaning user temp: %s\n", tempPath)
+			cleaned1, err := a.cleanService.CleanFolderSafe(tempPath)
 			if err != nil {
-				item.Status = "error"
-				item.Error = "清理用户临时文件失败: " + err.Error()
-				continue
+				fmt.Printf("[DEBUG] User temp clean failed: %v\n", err)
+			} else {
+				fmt.Printf("[DEBUG] User temp cleaned: %d bytes\n", cleaned1)
 			}
 
-			// 清理系统临时文件（可能需要管理员权限）
 			sysTempPath := a.cleanService.GetSystemTempPath()
-			err = a.cleanService.CleanFolder(sysTempPath)
+			fmt.Printf("[DEBUG] Cleaning system temp: %s\n", sysTempPath)
+			cleaned2, err := a.cleanService.CleanFolderSafe(sysTempPath)
 			if err != nil {
-				item.Status = "error"
-				item.Error = "清理系统临时文件失败（可能需要管理员权限）"
-				continue
+				fmt.Printf("[DEBUG] System temp clean failed: %v\n", err)
+			} else {
+				fmt.Printf("[DEBUG] System temp cleaned: %d bytes\n", cleaned2)
 			}
 
 		case "2": // 浏览器缓存
+			fmt.Printf("[DEBUG] Getting browser cache paths...\n")
 			paths := a.cleanService.GetBrowserCachePaths()
-			hasError := false
-			for _, path := range paths {
-				err = a.cleanService.CleanFolder(path)
+			fmt.Printf("[DEBUG] Found %d browser cache paths\n", len(paths))
+			var totalCleaned int64
+			for i, path := range paths {
+				fmt.Printf("[DEBUG] Cleaning browser cache [%d/%d]: %s\n", i+1, len(paths), path)
+				cleaned, err := a.cleanService.CleanFolderSafe(path)
 				if err != nil {
-					hasError = true
+					fmt.Printf("[DEBUG] Failed to clean %s: %v\n", path, err)
+				} else {
+					fmt.Printf("[DEBUG] Cleaned %s: %d bytes\n", path, cleaned)
+					totalCleaned += cleaned
 				}
 			}
-			if hasError {
-				item.Status = "error"
-				item.Error = "部分浏览器缓存清理失败（浏览器可能正在运行）"
-				continue
-			}
+			fmt.Printf("[DEBUG] Browser cache cleaned: %d bytes total\n", totalCleaned)
 
 		case "3": // 回收站
+			fmt.Printf("[DEBUG] Emptying recycle bin...\n")
 			err = a.cleanService.EmptyRecycleBin()
 			if err != nil {
+				fmt.Printf("[DEBUG] Recycle bin empty failed: %v\n", err)
 				item.Status = "error"
 				item.Error = "清空回收站失败: " + err.Error()
 				continue
 			}
-
-		case "4": // Windows更新缓存
-			updatePaths := a.cleanService.GetWindowsUpdateCachePaths()
-			hasError := false
-			for _, path := range updatePaths {
-				err = a.cleanService.CleanFolder(path)
-				if err != nil {
-					hasError = true
-				}
-			}
-			if hasError {
-				item.Status = "error"
-				item.Error = "部分更新缓存清理失败（需要管理员权限）"
-				continue
-			}
-
-		case "5": // 系统文件清理
-			// 清理所有系统文件路径（与扫描逻辑严格一致）
-			systemPaths := []string{
-				`C:\ProgramData\Microsoft\Windows\WER`,
-				filepath.Join(os.Getenv("LOCALAPPDATA"), `Microsoft\Windows\Explorer`),
-				`C:\Windows\Prefetch`,
-				`C:\Windows\Logs`,
-				`C:\Windows\Installer`,
-				`C:\ProgramData\Microsoft\Windows Defender\Scans\History`,
-			}
-			hasError := false
-			var errorMsg string
-			for _, path := range systemPaths {
-				err = a.cleanService.CleanFolder(path)
-				if err != nil {
-					hasError = true
-					errorMsg = "部分系统文件清理失败（可能需要管理员权限）"
-				}
-			}
-			if hasError {
-				item.Status = "error"
-				item.Error = errorMsg
-				continue
-			}
+			fmt.Printf("[DEBUG] Recycle bin emptied successfully\n")
 
 		case "6": // 应用缓存
-			// 清理所有应用缓存路径（与扫描逻辑严格一致）
-			localAppData := os.Getenv("LOCALAPPDATA")
-			userProfile := os.Getenv("USERPROFILE")
-			cacheDirs := []string{
-				filepath.Join(localAppData, "Temp"),
-				filepath.Join(localAppData, "Microsoft", "Windows", "INetCache"),
-				filepath.Join(localAppData, "CrashDumps"),
-				filepath.Join(localAppData, "Microsoft", "Windows", "WebCache"),
-				filepath.Join(localAppData, "Microsoft", "Windows", "Caches"),
-				filepath.Join(localAppData, "Packages"),
-				filepath.Join(userProfile, ".gradle", "caches"),
-				filepath.Join(userProfile, ".m2", "repository"),
-				filepath.Join(localAppData, "pip", "cache"),
-				filepath.Join(localAppData, "npm-cache"),
-			}
-			hasError := false
-			var errorMsg string
-			for _, dir := range cacheDirs {
-				err = a.cleanService.CleanFolder(dir)
+			fmt.Printf("[DEBUG] Getting app cache paths...\n")
+			cacheDirs := a.cleanService.GetAppCachePaths()
+			fmt.Printf("[DEBUG] Found %d app cache paths\n", len(cacheDirs))
+			var totalCleaned int64
+			for i, dir := range cacheDirs {
+				fmt.Printf("[DEBUG] Cleaning app cache [%d/%d]: %s\n", i+1, len(cacheDirs), dir)
+				cleaned, err := a.cleanService.CleanFolderSafe(dir)
 				if err != nil {
-					hasError = true
-					errorMsg = "部分应用缓存清理失败（应用可能正在使用）"
+					fmt.Printf("[DEBUG] Failed to clean %s: %v\n", dir, err)
+				} else {
+					fmt.Printf("[DEBUG] Cleaned %s: %d bytes\n", dir, cleaned)
+					totalCleaned += cleaned
 				}
 			}
-			if hasError {
-				item.Status = "error"
-				item.Error = errorMsg
-				continue
-			}
+			fmt.Printf("[DEBUG] App cache cleaned: %d bytes total\n", totalCleaned)
 
 		case "7": // 应用日志文件
 			cleanedSize, cleanedCount, err := a.cleanService.CleanLogFiles()
@@ -206,15 +285,15 @@ func (a *App) CleanItems(items []*models.CleanItem) error {
 				item.Error = "清理日志文件失败: " + err.Error()
 				continue
 			}
-			// 记录清理结果
 			item.Size = cleanedSize
 			item.FileCount = cleanedCount
 		}
 
-		// 标记为完成
 		item.Status = "completed"
+		fmt.Printf("[DEBUG] Item %s cleaned successfully\n", item.ID)
 	}
 
+	fmt.Printf("[DEBUG] CleanItems completed\n")
 	return nil
 }
 
@@ -296,4 +375,263 @@ func (a *App) DeleteDesktopFile(filePath string) error {
 // SelectFolder 选择文件夹
 func (a *App) SelectFolder() (string, error) {
 	return a.cleanService.SelectFolder()
+}
+
+// CleanItemElevated 以管理员权限清理项目
+func (a *App) CleanItemElevated(itemID string) (*ElevatedResult, error) {
+	// itemID=7 (应用日志文件) 使用特殊处理，不通过辅助程序
+	if itemID == "7" {
+		cleanedSize, cleanedCount, err := a.cleanService.CleanLogFiles()
+		if err != nil {
+			return &ElevatedResult{
+				Success: false,
+				Error:   err.Error(),
+			}, nil
+		}
+		return &ElevatedResult{
+			Success:      true,
+			CleanedSize:  cleanedSize,
+			CleanedCount: cleanedCount,
+		}, nil
+	}
+
+	// 1. 检查是否已经提升了权限
+	isAdmin := a.IsAdmin()
+	isElevated := a.IsElevated()
+	fmt.Printf("[DEBUG] CleanItemElevated: itemID=%s, isAdmin=%v, isElevated=%v\n", itemID, isAdmin, isElevated)
+
+	if isElevated {
+		// 已经提升了权限，直接执行（不会弹UAC）
+		fmt.Println("[DEBUG] Already elevated, executing directly")
+		return a.cleanItemDirect(itemID)
+	}
+
+	// 2. 获取要清理的路径列表
+	if isAdmin {
+		fmt.Println("[DEBUG] User is admin but not elevated, need to elevate via UAC")
+	} else {
+		fmt.Println("[DEBUG] User is not admin, need to elevate via UAC")
+	}
+
+	paths := a.getCleanPaths(itemID)
+	if len(paths) == 0 {
+		return nil, fmt.Errorf("没有找到要清理的路径")
+	}
+
+	// 3. 获取辅助程序路径
+	exePath, err := os.Executable()
+	if err != nil {
+		return nil, err
+	}
+
+	exeDir := filepath.Dir(exePath)
+	runtime.LogDebugf(a.ctx, "Executable dir: %s", exeDir)
+
+	// 尝试多个可能的位置
+	possiblePaths := []string{
+		filepath.Join(exeDir, "CCoolerElevated.exe"),             // 生产环境：与主程序同目录
+		filepath.Join(exeDir, "..", "CCoolerElevated.exe"),       // 开发环境：项目根目录
+		filepath.Join(exeDir, "..", "..", "CCoolerElevated.exe"), // wails dev 环境
+	}
+
+	var helperPath string
+	for _, path := range possiblePaths {
+		absPath, _ := filepath.Abs(path)
+		runtime.LogDebugf(a.ctx, "Checking: %s", absPath)
+
+		if _, err := os.Stat(path); err == nil {
+			helperPath = path
+			runtime.LogInfof(a.ctx, "✓ Found helper at: %s", absPath)
+			break
+		} else {
+			runtime.LogDebugf(a.ctx, "✗ Not found: %v", err)
+		}
+	}
+
+	if helperPath == "" {
+		errMsg := fmt.Sprintf("辅助程序不存在，请先构建: cd elevated && go build -o ../CCoolerElevated.exe\n已检查位置:\n")
+		for _, path := range possiblePaths {
+			absPath, _ := filepath.Abs(path)
+			errMsg += fmt.Sprintf("  - %s\n", absPath)
+		}
+		runtime.LogError(a.ctx, errMsg)
+		return nil, fmt.Errorf(errMsg)
+	}
+
+	// 4. 创建结果和进度通道
+	resultChan := make(chan *ElevatedResult, 1)
+	progressChan := make(chan *ElevatedProgress, 10)
+	resultID := fmt.Sprintf("clean-%s-%d", itemID, time.Now().Unix())
+
+	a.resultsMutex.Lock()
+	a.elevatedResults[resultID] = resultChan
+	a.elevatedProgress[resultID] = progressChan
+	a.resultsMutex.Unlock()
+
+	defer func() {
+		a.resultsMutex.Lock()
+		delete(a.elevatedResults, resultID)
+		delete(a.elevatedProgress, resultID)
+		a.resultsMutex.Unlock()
+	}()
+
+	// 5. 构造命令行参数（使用|分隔路径）
+	pathsStr := ""
+	for i, path := range paths {
+		if i > 0 {
+			pathsStr += "|"
+		}
+		pathsStr += path
+	}
+	args := fmt.Sprintf("-task=clean-item-%s -port=%s -paths=\"%s\"", itemID, a.httpPort, pathsStr)
+
+	// 6. 使用ShellExecute启动提升的辅助程序
+	helperLogPath := filepath.Join(filepath.Dir(helperPath), "CCoolerElevated.log")
+	runtime.LogInfof(a.ctx, "辅助程序日志: %s", helperLogPath)
+	runtime.LogDebugf(a.ctx, "Launching: %s", helperPath)
+	runtime.LogDebugf(a.ctx, "Args: %s", args)
+
+	err = a.shellExecuteElevated(helperPath, args)
+	if err != nil {
+		runtime.LogErrorf(a.ctx, "ShellExecute failed: %v", err)
+		return nil, fmt.Errorf("启动辅助程序失败: %v", err)
+	}
+
+	runtime.LogInfo(a.ctx, "ShellExecute succeeded, waiting for result...")
+	runtime.LogInfo(a.ctx, "如果看到UAC窗口，请点击\"是\"以继续")
+
+	// 7. 等待结果（动态超时：收到进度就重置超时）
+	timeout := time.NewTimer(30 * time.Second)
+	defer timeout.Stop()
+
+	for {
+		select {
+		case result := <-resultChan:
+			runtime.LogInfo(a.ctx, "收到清理结果")
+			return result, nil
+
+		case progress := <-progressChan:
+			// 收到进度，重置超时
+			timeout.Reset(30 * time.Second)
+			runtime.LogDebugf(a.ctx, "进度: %d/%d, 已清理: %d MB",
+				progress.ProcessedPaths, progress.TotalPaths, progress.CleanedSize/1024/1024)
+
+			// 通知前端更新进度
+			runtime.EventsEmit(a.ctx, "clean-progress", progress)
+
+		case <-timeout.C:
+			runtime.LogError(a.ctx, "清理超时！可能原因：")
+			runtime.LogError(a.ctx, "1. UAC 窗口被取消（点击了\"否\"）")
+			runtime.LogError(a.ctx, "2. UAC 窗口在后台等待确认（请检查任务栏）")
+			runtime.LogError(a.ctx, "3. 辅助程序启动失败")
+			return nil, fmt.Errorf("清理超时（30秒无响应）。请确认是否在UAC窗口中点击了\"是\"")
+		}
+	}
+}
+
+func (a *App) shellExecuteElevated(exePath, args string) error {
+	verb, _ := syscall.UTF16PtrFromString("runas")
+	exe, _ := syscall.UTF16PtrFromString(exePath)
+	params, _ := syscall.UTF16PtrFromString(args)
+
+	var showCmd int32 = windows.SW_HIDE // 隐藏窗口
+
+	// ShellExecute 返回值 > 32 表示成功，<= 32 表示错误
+	ret, _, _ := syscall.NewLazyDLL("shell32.dll").NewProc("ShellExecuteW").Call(
+		0, // hwnd
+		uintptr(unsafe.Pointer(verb)),
+		uintptr(unsafe.Pointer(exe)),
+		uintptr(unsafe.Pointer(params)),
+		0, // dir
+		uintptr(showCmd),
+	)
+
+	fmt.Printf("[DEBUG] ShellExecute return value: %d\n", ret)
+	runtime.LogDebugf(a.ctx, "ShellExecute return value: %d", ret)
+
+	if ret <= 32 {
+		// 返回值 <= 32 表示错误
+		// 常见错误码：
+		// 0 = 内存不足
+		// 2 = 文件未找到
+		// 3 = 路径未找到
+		// 5 = 访问被拒绝
+		// 8 = 内存不足
+		// 26 = 共享冲突
+		// 27 = 文件关联不完整
+		// 28 = DDE 超时
+		// 29 = DDE 失败
+		// 30 = DDE 忙
+		// 31 = 没有关联
+		// 32 = DLL 未找到
+		return fmt.Errorf("ShellExecute failed with code %d", ret)
+	}
+
+	return nil
+}
+
+// cleanItemDirect 直接清理（已有管理员权限）
+func (a *App) cleanItemDirect(itemID string) (*ElevatedResult, error) {
+	result := &ElevatedResult{Success: true}
+
+	paths := a.getCleanPaths(itemID)
+	if len(paths) == 0 {
+		return nil, fmt.Errorf("unknown item: %s", itemID)
+	}
+
+	// 清理所有路径
+	for _, path := range paths {
+		size, count := a.cleanFolderAndCount(path)
+		result.CleanedSize += size
+		result.CleanedCount += count
+	}
+
+	return result, nil
+}
+
+// getCleanPaths 获取清理路径列表（统一从CleanService获取，避免硬编码）
+func (a *App) getCleanPaths(itemID string) []string {
+	switch itemID {
+	case "1": // 系统临时文件
+		return []string{
+			a.cleanService.GetTempPath(),
+			a.cleanService.GetSystemTempPath(),
+		}
+	case "2": // 浏览器缓存
+		return a.cleanService.GetBrowserCachePaths()
+	case "3": // 回收站
+		return []string{a.cleanService.GetRecycleBinPath()}
+	case "4": // Windows更新缓存
+		return a.cleanService.GetWindowsUpdateCachePaths()
+	case "5": // 系统文件清理
+		return a.cleanService.GetSystemFilePaths()
+	case "6": // 应用缓存
+		return a.cleanService.GetAppCachePaths()
+	case "7": // 应用日志文件
+		// 日志文件通过 CleanLogFiles 特殊处理，不使用路径清理
+		return []string{}
+	default:
+		return []string{}
+	}
+}
+
+// cleanFolderAndCount 清理文件夹并统计
+func (a *App) cleanFolderAndCount(path string) (int64, int) {
+	var totalSize int64
+	var count int
+
+	filepath.Walk(path, func(filePath string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+
+		if !info.IsDir() {
+			totalSize += info.Size()
+			count++
+			os.Remove(filePath)
+		}
+		return nil
+	})
+
+	return totalSize, count
 }

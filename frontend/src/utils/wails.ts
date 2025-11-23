@@ -25,10 +25,28 @@ declare global {
           ScanDesktop(desktopPath: string): Promise<any>;
           DeleteDesktopFile(filePath: string): Promise<void>;
           SelectFolder(): Promise<string>;
+          CleanItemElevated(itemID: string): Promise<ElevatedResult>;
         };
       };
     };
   }
+}
+
+// ElevatedResult 提升权限执行结果
+export interface ElevatedResult {
+  success: boolean;
+  error?: string;
+  cleanedSize: number;
+  cleanedCount: number;
+}
+
+// ElevatedProgress 提升权限执行进度
+export interface ElevatedProgress {
+  processedPaths: number;
+  totalPaths: number;
+  cleanedSize: number;
+  cleanedCount: number;
+  currentPath: string;
 }
 
 // 检查是否在 Wails 环境中运行
@@ -314,6 +332,19 @@ export const WailsAPI = {
     }
     // 开发环境返回模拟路径（使用当前用户的桌面）
     return 'C:\\Users\\User\\Desktop';
+  },
+
+  // 以管理员权限清理项目
+  cleanItemElevated: async (itemID: string): Promise<ElevatedResult> => {
+    if (isWailsEnv()) {
+      return await window.go.main.App.CleanItemElevated(itemID);
+    }
+    // 开发环境模拟
+    return {
+      success: true,
+      cleanedSize: 1024 * 1024 * 100, // 100MB
+      cleanedCount: 50,
+    };
   },
 };
 
