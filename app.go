@@ -351,7 +351,62 @@ func (a *App) ScanSystemOptimize() (*services.SystemOptimizeResult, error) {
 
 // CleanSystemOptimizeItem 清理系统优化项
 func (a *App) CleanSystemOptimizeItem(itemType string) error {
-	return a.optimizeService.Clean(services.SystemOptimizeType(itemType))
+	// 检查是否已经提升了权限
+	if a.IsElevated() {
+		// 已经提升了权限，直接执行
+		return a.optimizeService.Clean(services.SystemOptimizeType(itemType))
+	}
+
+	// 需要提升权限，使用辅助程序
+	exePath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("无法获取程序路径: %v", err)
+	}
+
+	exeDir := filepath.Dir(exePath)
+	helperPath := filepath.Join(exeDir, "CCoolerElevated.exe")
+
+	if _, err := os.Stat(helperPath); err != nil {
+		return fmt.Errorf("辅助程序 CCoolerElevated.exe 不存在")
+	}
+
+	// 创建结果通道
+	resultChan := make(chan *ElevatedResult, 1)
+	resultID := fmt.Sprintf("optimize-%s-%d", itemType, time.Now().Unix())
+
+	a.resultsMutex.Lock()
+	a.elevatedResults[resultID] = resultChan
+	a.resultsMutex.Unlock()
+
+	defer func() {
+		a.resultsMutex.Lock()
+		delete(a.elevatedResults, resultID)
+		a.resultsMutex.Unlock()
+	}()
+
+	// 构造命令行参数（系统优化任务不需要 paths，但提供空值以满足参数解析）
+	args := fmt.Sprintf("-task=optimize-%s -port=%s -paths=\"\"", itemType, a.httpPort)
+
+	// 启动提升的辅助程序
+	runtime.LogInfof(a.ctx, "使用管理员权限执行系统优化: %s", itemType)
+	err = a.shellExecuteElevated(helperPath, args)
+	if err != nil {
+		return fmt.Errorf("启动辅助程序失败: %v", err)
+	}
+
+	// 等待结果
+	timeout := time.NewTimer(30 * time.Second)
+	defer timeout.Stop()
+
+	select {
+	case result := <-resultChan:
+		if !result.Success {
+			return fmt.Errorf(result.Error)
+		}
+		return nil
+	case <-timeout.C:
+		return fmt.Errorf("操作超时")
+	}
 }
 
 // ScanDesktop 扫描桌面文件

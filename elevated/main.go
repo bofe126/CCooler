@@ -8,12 +8,15 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
+	"golang.org/x/text/encoding/simplifiedchinese"
+	"golang.org/x/text/transform"
 )
 
 type TaskResult struct {
@@ -84,8 +87,8 @@ func main() {
 
 	log.Printf("Args: task=%s, port=%s, paths=%s", *task, *port, *paths)
 
-	if *task == "" || *port == "" || *paths == "" {
-		log.Fatal("Usage: CCoolerElevated.exe -task=<task> -port=<port> -paths=<paths>")
+	if *task == "" || *port == "" {
+		log.Fatal("Usage: CCoolerElevated.exe -task=<task> -port=<port> [-paths=<paths>]")
 	}
 
 	// 执行任务
@@ -110,12 +113,61 @@ func executeTask(task, pathsStr, port string) *TaskResult {
 		// 批量清理多个项目（单次UAC）
 		log.Printf("Batch cleaning %d paths", len(paths))
 		return cleanPathsWithProgress(paths, port)
+	case "optimize-hibernation":
+		// 禁用休眠
+		return executeSystemCommand("powercfg", "/hibernate", "off")
+	case "optimize-restore":
+		// 清理系统还原点
+		return executeSystemCommand("vssadmin", "delete", "shadows", "/all", "/quiet")
+	case "optimize-pagefile":
+		// 禁用虚拟内存
+		return disablePagefile()
 	default:
 		return &TaskResult{
 			Success: false,
 			Error:   fmt.Sprintf("unknown task: %s", task),
 		}
 	}
+}
+
+// gbkToUtf8 将 GBK 编码转换为 UTF-8
+func gbkToUtf8(s []byte) (string, error) {
+	reader := transform.NewReader(bytes.NewReader(s), simplifiedchinese.GBK.NewDecoder())
+	buf := new(bytes.Buffer)
+	_, err := buf.ReadFrom(reader)
+	if err != nil {
+		return "", err
+	}
+	return buf.String(), nil
+}
+
+// executeSystemCommand 执行系统命令
+func executeSystemCommand(name string, args ...string) *TaskResult {
+	cmd := exec.Command(name, args...)
+	output, err := cmd.CombinedOutput()
+
+	if err != nil {
+		// 转换 GBK 输出为 UTF-8
+		outputStr, convErr := gbkToUtf8(output)
+		if convErr != nil {
+			outputStr = string(output) // 转换失败则使用原始输出
+		}
+		return &TaskResult{
+			Success: false,
+			Error:   fmt.Sprintf("命令执行失败: %v, 输出: %s", err, outputStr),
+		}
+	}
+
+	return &TaskResult{
+		Success: true,
+	}
+}
+
+// disablePagefile 禁用虚拟内存
+func disablePagefile() *TaskResult {
+	// 使用注册表方法禁用虚拟内存
+	psScript := `Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management' -Name 'PagingFiles' -Type MultiString -Value @()`
+	return executeSystemCommand("powershell", "-NoProfile", "-NonInteractive", "-Command", psScript)
 }
 
 func sendResult(port string, result *TaskResult) {

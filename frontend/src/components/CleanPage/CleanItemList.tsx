@@ -28,8 +28,9 @@ export default function CleanItemList({ items, onToggle, onViewDetail, disabled 
         return '等待中...';
       case 'error':
         return item.error || '失败';
-      case 'scanned':
       case 'completed':
+        return '已清理';
+      case 'scanned':
         return formatSize(item.size);
       default:
         return formatSize(item.size);

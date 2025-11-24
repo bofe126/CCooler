@@ -1,12 +1,16 @@
 package services
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"syscall"
 	"unsafe"
+
+	"golang.org/x/text/encoding/simplifiedchinese"
+	"golang.org/x/text/transform"
 )
 
 // SystemOptimizeType 系统优化项类型
@@ -109,6 +113,25 @@ func (s *OptimizeService) checkHibernation() *SystemOptimizeItem {
 func (s *OptimizeService) checkPagefile() *SystemOptimizeItem {
 	path := "C:\\pagefile.sys"
 
+	// 先检查注册表配置（更准确）
+	psScript := `(Get-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management' -Name 'PagingFiles').PagingFiles`
+	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", psScript)
+	output, err := cmd.CombinedOutput()
+
+	// 如果注册表显示已禁用（空值或空数组）
+	outputStr := string(output)
+	if err == nil && (len(outputStr) == 0 || outputStr == "\r\n" || outputStr == "\n") {
+		return &SystemOptimizeItem{
+			Type:        OptimizePagefile,
+			Name:        "虚拟内存文件",
+			Description: "虚拟内存已禁用（重启后生效）",
+			Path:        path,
+			Size:        0,
+			Enabled:     false,
+			CanDisable:  false,
+		}
+	}
+
 	// 检查文件是否存在
 	info, err := os.Stat(path)
 	if err != nil {
@@ -126,11 +149,11 @@ func (s *OptimizeService) checkPagefile() *SystemOptimizeItem {
 	return &SystemOptimizeItem{
 		Type:        OptimizePagefile,
 		Name:        "虚拟内存文件",
-		Description: "系统虚拟内存文件 (pagefile.sys)，建议保留以保证系统稳定运行",
+		Description: "Windows 虚拟内存文件（pagefile.sys）- 不建议禁用，除非物理内存充足",
 		Path:        path,
 		Size:        info.Size(),
 		Enabled:     true,
-		CanDisable:  false, // 不建议禁用虚拟内存
+		CanDisable:  true, // 允许禁用，但前端会显示警告
 	}
 }
 
@@ -177,10 +200,21 @@ func (s *OptimizeService) Clean(itemType SystemOptimizeType) error {
 	case OptimizeRestore:
 		return s.cleanSystemRestore()
 	case OptimizePagefile:
-		return fmt.Errorf("不建议禁用虚拟内存")
+		return s.disablePagefile()
 	default:
 		return fmt.Errorf("未知的优化项类型: %s", itemType)
 	}
+}
+
+// gbkToUtf8 将 GBK 编码转换为 UTF-8
+func gbkToUtf8(s []byte) (string, error) {
+	reader := transform.NewReader(bytes.NewReader(s), simplifiedchinese.GBK.NewDecoder())
+	buf := new(bytes.Buffer)
+	_, err := buf.ReadFrom(reader)
+	if err != nil {
+		return "", err
+	}
+	return buf.String(), nil
 }
 
 // disableHibernation 禁用休眠
@@ -193,7 +227,12 @@ func (s *OptimizeService) disableHibernation() error {
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("禁用休眠失败: %v, 输出: %s", err, string(output))
+		// 转换 GBK 输出为 UTF-8
+		outputStr, convErr := gbkToUtf8(output)
+		if convErr != nil {
+			outputStr = string(output) // 转换失败则使用原始输出
+		}
+		return fmt.Errorf("禁用休眠失败: %v, 输出: %s", err, outputStr)
 	}
 
 	return nil
@@ -210,7 +249,43 @@ func (s *OptimizeService) cleanSystemRestore() error {
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("清理系统还原点失败: %v, 输出: %s", err, string(output))
+		// 转换 GBK 输出为 UTF-8
+		outputStr, convErr := gbkToUtf8(output)
+		if convErr != nil {
+			outputStr = string(output) // 转换失败则使用原始输出
+		}
+		return fmt.Errorf("清理系统还原点失败: %v, 输出: %s", err, outputStr)
+	}
+
+	return nil
+}
+
+// disablePagefile 禁用虚拟内存（页面文件）
+func (s *OptimizeService) disablePagefile() error {
+	// 警告：禁用虚拟内存可能导致系统不稳定
+	// 使用注册表方法禁用虚拟内存（更可靠）
+	psScript := `
+		# 禁用自动管理页面文件
+		Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management' -Name 'PagingFiles' -Value ''
+		
+		# 设置为不自动管理
+		$path = 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management'
+		Set-ItemProperty -Path $path -Name 'PagingFiles' -Type MultiString -Value @()
+	`
+
+	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", psScript)
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		HideWindow: true,
+	}
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		// 转换 GBK 输出为 UTF-8
+		outputStr, convErr := gbkToUtf8(output)
+		if convErr != nil {
+			outputStr = string(output)
+		}
+		return fmt.Errorf("禁用虚拟内存失败: %v, 输出: %s", err, outputStr)
 	}
 
 	return nil

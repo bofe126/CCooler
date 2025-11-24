@@ -67,15 +67,37 @@ export default function OptimizePage({ isFirstVisit = true, onOptimizableSpaceUp
 
   // 清理/禁用项
   const handleClean = async (item: SystemOptimizeItem) => {
-    const confirmMsg = item.type === 'restore' 
-      ? `确定要删除系统还原点吗？这将释放 ${formatSize(item.size)} 空间。`
-      : `确定要禁用${item.name}吗？这将释放 ${formatSize(item.size)} 空间。`;
-    
-    if (!window.confirm(confirmMsg)) return;
+    // 虚拟内存特殊警告
+    if (item.type === 'pagefile') {
+      const confirmed = window.confirm(
+        `确定要禁用虚拟内存吗？\n\n` +
+        `将释放 ${formatSize(item.size)} 空间\n\n` +
+        '注意：\n' +
+        '• 建议物理内存在 16GB 以上\n' +
+        '• 需要重启计算机才能生效\n' +
+        '• 如果内存不足可能影响系统稳定性\n\n' +
+        '是否继续？'
+      );
+      if (!confirmed) return;
+    } else {
+      // 其他项目的常规确认
+      const confirmMsg = item.type === 'restore' 
+        ? `确定要删除系统还原点吗？这将释放 ${formatSize(item.size)} 空间。`
+        : `确定要禁用${item.name}吗？这将释放 ${formatSize(item.size)} 空间。`;
+      
+      if (!window.confirm(confirmMsg)) return;
+    }
 
     try {
       await WailsAPI.cleanSystemOptimizeItem(item.type);
-      alert('操作成功！');
+      
+      // 根据类型显示不同的成功提示
+      if (item.type === 'pagefile') {
+        alert('✓ 虚拟内存已禁用\n\n请重启计算机使更改生效。');
+      } else {
+        alert('操作成功！');
+      }
+      
       // 重新扫描
       handleScan();
     } catch (error) {
