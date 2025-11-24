@@ -424,48 +424,40 @@ func (a *App) CleanItemElevated(item *models.CleanItem) (*ElevatedResult, error)
 	}
 
 	if len(paths) == 0 {
-		return nil, fmt.Errorf("没有找到要清理的路径")
+		return &ElevatedResult{
+			Success: false,
+			Error:   "没有找到要清理的路径",
+		}, nil
 	}
 
 	// 3. 获取辅助程序路径
 	exePath, err := os.Executable()
 	if err != nil {
-		return nil, err
+		return &ElevatedResult{
+			Success: false,
+			Error:   fmt.Sprintf("无法获取程序路径: %v", err),
+		}, nil
 	}
 
 	exeDir := filepath.Dir(exePath)
 	runtime.LogDebugf(a.ctx, "Executable dir: %s", exeDir)
 
-	// 尝试多个可能的位置
-	possiblePaths := []string{
-		filepath.Join(exeDir, "CCoolerElevated.exe"),             // 生产环境：与主程序同目录
-		filepath.Join(exeDir, "..", "CCoolerElevated.exe"),       // 开发环境：项目根目录
-		filepath.Join(exeDir, "..", "..", "CCoolerElevated.exe"), // wails dev 环境
-	}
+	// 辅助程序必须与主程序在同一目录
+	helperPath := filepath.Join(exeDir, "CCoolerElevated.exe")
+	absHelperPath, _ := filepath.Abs(helperPath)
 
-	var helperPath string
-	for _, path := range possiblePaths {
-		absPath, _ := filepath.Abs(path)
-		runtime.LogDebugf(a.ctx, "Checking: %s", absPath)
+	runtime.LogDebugf(a.ctx, "Looking for helper: %s", absHelperPath)
 
-		if _, err := os.Stat(path); err == nil {
-			helperPath = path
-			runtime.LogInfof(a.ctx, "✓ Found helper at: %s", absPath)
-			break
-		} else {
-			runtime.LogDebugf(a.ctx, "✗ Not found: %v", err)
-		}
-	}
-
-	if helperPath == "" {
-		errMsg := fmt.Sprintf("辅助程序不存在，请先构建: cd elevated && go build -o ../CCoolerElevated.exe\n已检查位置:\n")
-		for _, path := range possiblePaths {
-			absPath, _ := filepath.Abs(path)
-			errMsg += fmt.Sprintf("  - %s\n", absPath)
-		}
+	if _, err := os.Stat(helperPath); err != nil {
+		errMsg := fmt.Sprintf("辅助程序 CCoolerElevated.exe 不存在\n\n期望位置: %s\n当前程序目录: %s\n\n请确保 CCoolerElevated.exe 与 CCooler.exe 在同一目录下", absHelperPath, exeDir)
 		runtime.LogError(a.ctx, errMsg)
-		return nil, fmt.Errorf(errMsg)
+		return &ElevatedResult{
+			Success: false,
+			Error:   "辅助程序 CCoolerElevated.exe 不存在，请确保它与主程序在同一目录",
+		}, nil
 	}
+
+	runtime.LogInfof(a.ctx, "✓ Found helper at: %s", absHelperPath)
 
 	// 4. 创建结果和进度通道
 	resultChan := make(chan *ElevatedResult, 1)
@@ -503,7 +495,10 @@ func (a *App) CleanItemElevated(item *models.CleanItem) (*ElevatedResult, error)
 	err = a.shellExecuteElevated(helperPath, args)
 	if err != nil {
 		runtime.LogErrorf(a.ctx, "ShellExecute failed: %v", err)
-		return nil, fmt.Errorf("启动辅助程序失败: %v", err)
+		return &ElevatedResult{
+			Success: false,
+			Error:   fmt.Sprintf("启动辅助程序失败: %v", err),
+		}, nil
 	}
 
 	runtime.LogInfo(a.ctx, "ShellExecute succeeded, waiting for result...")
@@ -533,7 +528,10 @@ func (a *App) CleanItemElevated(item *models.CleanItem) (*ElevatedResult, error)
 			runtime.LogError(a.ctx, "1. UAC 窗口被取消（点击了\"否\"）")
 			runtime.LogError(a.ctx, "2. UAC 窗口在后台等待确认（请检查任务栏）")
 			runtime.LogError(a.ctx, "3. 辅助程序启动失败")
-			return nil, fmt.Errorf("清理超时（30秒无响应）。请确认是否在UAC窗口中点击了\"是\"")
+			return &ElevatedResult{
+				Success: false,
+				Error:   "清理超时（30秒无响应）。请确认是否在UAC窗口中点击了\"是\"",
+			}, nil
 		}
 	}
 }
@@ -615,7 +613,10 @@ func (a *App) cleanItemDirect(item *models.CleanItem) (*ElevatedResult, error) {
 	}
 
 	if len(paths) == 0 {
-		return nil, fmt.Errorf("unknown item: %s", itemID)
+		return &ElevatedResult{
+			Success: false,
+			Error:   fmt.Sprintf("没有找到要清理的路径 (itemID: %s)", itemID),
+		}, nil
 	}
 
 	// 清理所有路径

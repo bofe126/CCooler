@@ -243,11 +243,12 @@ export default function CleanPage({ isFirstVisit = true, onCleanComplete, onClea
           );
         } else {
           // 标记为错误，但继续清理其他项目
-          console.error(`清理项目 ${item.id} 失败:`, result.error);
+          const errorMsg = result.error || '清理失败，未知错误';
+          console.error(`清理项目 ${item.id} 失败:`, errorMsg);
           setCleanItems(prev =>
             prev.map(i =>
               i.id === item.id
-                ? { ...i, status: 'error', error: result.error }
+                ? { ...i, status: 'error', error: errorMsg }
                 : i
             )
           );
@@ -260,10 +261,20 @@ export default function CleanPage({ isFirstVisit = true, onCleanComplete, onClea
     } catch (error: any) {
       console.error('清理失败:', error);
       
-      if (error.message?.includes('UAC') || error.message?.includes('取消')) {
+      // 提取错误信息
+      let errorMessage = '未知错误';
+      if (error?.message) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      } else if (error?.toString) {
+        errorMessage = error.toString();
+      }
+      
+      if (errorMessage.includes('UAC') || errorMessage.includes('取消')) {
         alert('需要管理员权限才能清理此项，请在UAC弹窗中点击\"是\"');
       } else {
-        alert(`清理失败: ${error.message}`);
+        alert(`清理失败: ${errorMessage}`);
       }
       
       setPageState('scan-complete');
