@@ -26,6 +26,7 @@ declare global {
           DeleteDesktopFile(filePath: string): Promise<void>;
           SelectFolder(): Promise<string>;
           CleanItemElevated(item: any): Promise<ElevatedResult>;
+          CleanItemsElevated(items: any[]): Promise<ElevatedResult>;
         };
       };
     };
@@ -342,8 +343,23 @@ export const WailsAPI = {
     // 开发环境模拟
     return {
       success: true,
-      cleanedSize: 1024 * 1024 * 100, // 100MB
-      cleanedCount: 50,
+      cleanedSize: item.size || 1024 * 1024 * 100,
+      cleanedCount: item.fileCount || 50,
+    };
+  },
+
+  // 批量以管理员权限清理多个项目（单次UAC提示）
+  cleanItemsElevated: async (items: any[]): Promise<ElevatedResult> => {
+    if (isWailsEnv()) {
+      return await window.go.main.App.CleanItemsElevated(items);
+    }
+    // 开发环境模拟
+    const totalSize = items.reduce((sum, item) => sum + (item.size || 0), 0);
+    const totalCount = items.reduce((sum, item) => sum + (item.fileCount || 0), 0);
+    return {
+      success: true,
+      cleanedSize: totalSize || 1024 * 1024 * 200,
+      cleanedCount: totalCount || 100,
     };
   },
 };

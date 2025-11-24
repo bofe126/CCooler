@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, Lightbulb, CheckCircle, Loader2 } from 'lucide-react';
+import { Lightbulb, CheckCircle, Loader2 } from 'lucide-react';
 import CleanItemList from '@/components/CleanPage/CleanItemList';
 import CleanItemDetail from '@/components/CleanPage/CleanItemDetail';
 import WailsAPI, { type ElevatedProgress } from '@/utils/wails';
@@ -220,34 +220,87 @@ export default function CleanPage({ isFirstVisit = true, onCleanComplete, onClea
       
       let totalCleanedSize = 0;
       
-      // 使用管理员权限清理所有项目
-      for (const item of checkedItems) {
-        console.log(`清理项目: ${item.id}:${item.name}`);
+      // 分离需要管理员权限的项目和普通项目
+      // ID 4 (Windows更新缓存) 和 ID 5 (系统文件清理) 需要管理员权限
+      const adminItems = checkedItems.filter(item => item.id === '4' || item.id === '5');
+      const normalItems = checkedItems.filter(item => item.id !== '4' && item.id !== '5');
+      
+      console.log(`管理员权限项目: ${adminItems.length}个, 普通项目: ${normalItems.length}个`);
+      
+      // 1. 先清理普通项目（不需要UAC，使用普通清理方法）
+      if (normalItems.length > 0) {
+        console.log(`清理 ${normalItems.length} 个普通项目（无需UAC）`);
         
+        // 标记所有普通项目为清理中
         setCleanItems(prev =>
           prev.map(i =>
-            i.id === item.id ? { ...i, status: 'cleaning' } : i
+            normalItems.some(item => item.id === i.id)
+              ? { ...i, status: 'cleaning' }
+              : i
           )
         );
         
-        const result = await WailsAPI.cleanItemElevated(item);
+        try {
+          // 使用普通清理方法（不会触发UAC）
+          await WailsAPI.cleanItems(normalItems);
+          
+          // 标记所有普通项目为完成
+          setCleanItems(prev =>
+            prev.map(i =>
+              normalItems.some(item => item.id === i.id)
+                ? { ...i, status: 'completed', size: 0, fileCount: 0 }
+                : i
+            )
+          );
+          
+          // 计算清理大小（从扫描结果中获取）
+          const normalSize = normalItems.reduce((sum, item) => sum + item.size, 0);
+          totalCleanedSize += normalSize;
+        } catch (error) {
+          console.error('普通项目清理失败:', error);
+          // 标记失败
+          setCleanItems(prev =>
+            prev.map(i =>
+              normalItems.some(item => item.id === i.id)
+                ? { ...i, status: 'error', error: '清理失败' }
+                : i
+            )
+          );
+        }
+      }
+      
+      // 2. 批量清理管理员权限项目（单次UAC提示）
+      if (adminItems.length > 0) {
+        console.log(`批量清理 ${adminItems.length} 个管理员权限项目（单次UAC）`);
+        
+        // 标记所有管理员项目为清理中
+        setCleanItems(prev =>
+          prev.map(i =>
+            adminItems.some(item => item.id === i.id)
+              ? { ...i, status: 'cleaning' }
+              : i
+          )
+        );
+        
+        // 批量清理（单次UAC）
+        const result = await WailsAPI.cleanItemsElevated(adminItems);
         
         if (result.success) {
           totalCleanedSize += result.cleanedSize;
+          // 标记所有管理员项目为完成
           setCleanItems(prev =>
             prev.map(i =>
-              i.id === item.id
+              adminItems.some(item => item.id === i.id)
                 ? { ...i, status: 'completed', size: 0, fileCount: 0 }
                 : i
             )
           );
         } else {
-          // 标记为错误，但继续清理其他项目
           const errorMsg = result.error || '清理失败，未知错误';
-          console.error(`清理项目 ${item.id} 失败:`, errorMsg);
+          console.error(`批量清理管理员项目失败:`, errorMsg);
           setCleanItems(prev =>
             prev.map(i =>
-              i.id === item.id
+              adminItems.some(item => item.id === i.id)
                 ? { ...i, status: 'error', error: errorMsg }
                 : i
             )
@@ -332,7 +385,7 @@ export default function CleanPage({ isFirstVisit = true, onCleanComplete, onClea
         return (
           <>
             <div className="mb-4 flex items-center gap-2 text-primary">
-              <Search size={20} className="animate-pulse" />
+              <Loader2 size={20} className="animate-spin" />
               <span className="font-medium">正在扫描...</span>
             </div>
 
@@ -367,7 +420,7 @@ export default function CleanPage({ isFirstVisit = true, onCleanComplete, onClea
           <>
             <div className="mb-4 flex items-center gap-2 text-green-600">
               <CheckCircle size={20} />
-              <span className="font-medium">✓ 扫描完成</span>
+              <span className="font-medium">扫描完成</span>
             </div>
 
             <CleanItemList
@@ -627,8 +680,9 @@ export default function CleanPage({ isFirstVisit = true, onCleanComplete, onClea
                 <strong>提示：</strong>
               </p>
               <ul className="text-sm text-blue-700 mt-2 space-y-1 list-disc list-inside">
-                <li>如果程序已以管理员身份运行，将直接清理</li>
-                <li>否则会弹出 Windows UAC 窗口（可能在后台）</li>
+                <li>普通项目将直接清理（无需UAC）</li>
+                <li>管理员权限项目将批量清理（仅弹出1次UAC）</li>
+                <li>如果程序已以管理员身份运行，将直接清理所有项目</li>
                 <li>请在 UAC 窗口中点击"是"以继续</li>
               </ul>
             </div>

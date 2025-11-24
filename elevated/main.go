@@ -106,6 +106,10 @@ func executeTask(task, pathsStr, port string) *TaskResult {
 	switch task {
 	case "clean-item-1", "clean-item-2", "clean-item-3", "clean-item-4", "clean-item-5", "clean-item-6", "clean-item-7":
 		return cleanPathsWithProgress(paths, port)
+	case "clean-batch":
+		// 批量清理多个项目（单次UAC）
+		log.Printf("Batch cleaning %d paths", len(paths))
+		return cleanPathsWithProgress(paths, port)
 	default:
 		return &TaskResult{
 			Success: false,
@@ -117,13 +121,26 @@ func executeTask(task, pathsStr, port string) *TaskResult {
 func sendResult(port string, result *TaskResult) {
 	url := fmt.Sprintf("http://127.0.0.1:%s/elevated-result", port)
 
-	data, _ := json.Marshal(result)
+	data, err := json.Marshal(result)
+	if err != nil {
+		log.Printf("Failed to marshal result: %v", err)
+		return
+	}
+
+	log.Printf("Sending result to %s: %s", url, string(data))
+
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer(data))
 	if err != nil {
 		log.Printf("Failed to send result: %v", err)
 		return
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("Server returned non-OK status: %d", resp.StatusCode)
+	} else {
+		log.Printf("Result sent successfully")
+	}
 }
 
 // TOKEN_ELEVATION 结构体

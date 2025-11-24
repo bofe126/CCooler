@@ -52,13 +52,23 @@ func cleanPathsWithProgress(paths []string, port string) *TaskResult {
 func sendProgress(port string, progress *ProgressUpdate) {
 	url := "http://127.0.0.1:" + port + "/elevated-progress"
 
-	data, _ := json.Marshal(progress)
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(data))
+	data, err := json.Marshal(progress)
 	if err != nil {
 		// 进度发送失败不影响清理继续
 		return
 	}
+
+	resp, err := http.Post(url, "application/json", bytes.NewBuffer(data))
+	if err != nil {
+		// 进度发送失败不影响清理继续（可能主程序已关闭）
+		return
+	}
 	defer resp.Body.Close()
+
+	// 静默处理非200状态码，不影响清理继续
+	if resp.StatusCode != http.StatusOK {
+		// 不记录日志，避免过多输出
+	}
 }
 
 // removeDirectoryWithProgress 清理目录并定期发送进度

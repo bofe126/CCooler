@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -366,6 +367,148 @@ func (a *App) DeleteDesktopFile(filePath string) error {
 // SelectFolder 选择文件夹
 func (a *App) SelectFolder() (string, error) {
 	return a.cleanService.SelectFolder()
+}
+
+// CleanItemsElevated 批量以管理员权限清理多个项目（单次UAC提示）
+func (a *App) CleanItemsElevated(items []*models.CleanItem) (*ElevatedResult, error) {
+	if len(items) == 0 {
+		return &ElevatedResult{Success: true}, nil
+	}
+
+	// 1. 检查是否已经提升了权限
+	isElevated := a.IsElevated()
+	fmt.Printf("[DEBUG] CleanItemsElevated: %d items, isElevated=%v\n", len(items), isElevated)
+
+	if isElevated {
+		// 已经提升了权限，直接执行所有项目
+		fmt.Println("[DEBUG] Already elevated, executing all items directly")
+		totalResult := &ElevatedResult{Success: true}
+		for _, item := range items {
+			result, err := a.cleanItemDirect(item)
+			if err != nil {
+				return &ElevatedResult{Success: false, Error: err.Error()}, err
+			}
+			if !result.Success {
+				totalResult.Success = false
+				totalResult.Error += result.Error + "; "
+			}
+			totalResult.CleanedSize += result.CleanedSize
+			totalResult.CleanedCount += result.CleanedCount
+		}
+		return totalResult, nil
+	}
+
+	// 2. 收集所有需要清理的路径
+	allPaths := []string{}
+	for _, item := range items {
+		// 特殊处理：回收站和日志文件不通过辅助程序
+		if item.ID == "3" || item.ID == "7" {
+			continue
+		}
+		for _, pathDetail := range item.Paths {
+			allPaths = append(allPaths, pathDetail.Path)
+		}
+	}
+
+	if len(allPaths) == 0 {
+		// 所有项目都是特殊处理项，直接执行
+		totalResult := &ElevatedResult{Success: true}
+		for _, item := range items {
+			result, _ := a.CleanItemElevated(item)
+			totalResult.CleanedSize += result.CleanedSize
+			totalResult.CleanedCount += result.CleanedCount
+		}
+		return totalResult, nil
+	}
+
+	// 3. 获取辅助程序路径
+	exePath, err := os.Executable()
+	if err != nil {
+		return &ElevatedResult{
+			Success: false,
+			Error:   fmt.Sprintf("无法获取程序路径: %v", err),
+		}, nil
+	}
+
+	exeDir := filepath.Dir(exePath)
+	helperPath := filepath.Join(exeDir, "CCoolerElevated.exe")
+	absHelperPath, _ := filepath.Abs(helperPath)
+
+	runtime.LogDebugf(a.ctx, "Looking for helper: %s", absHelperPath)
+
+	if _, err := os.Stat(helperPath); err != nil {
+		return &ElevatedResult{
+			Success: false,
+			Error:   "辅助程序 CCoolerElevated.exe 不存在，请确保它与主程序在同一目录",
+		}, nil
+	}
+
+	runtime.LogInfof(a.ctx, "✓ Found helper at: %s", absHelperPath)
+
+	// 4. 创建结果和进度通道
+	resultChan := make(chan *ElevatedResult, 1)
+	progressChan := make(chan *ElevatedProgress, 10)
+	resultID := fmt.Sprintf("clean-batch-%d", time.Now().Unix())
+
+	a.resultsMutex.Lock()
+	a.elevatedResults[resultID] = resultChan
+	a.elevatedProgress[resultID] = progressChan
+	a.resultsMutex.Unlock()
+
+	defer func() {
+		a.resultsMutex.Lock()
+		delete(a.elevatedResults, resultID)
+		delete(a.elevatedProgress, resultID)
+		a.resultsMutex.Unlock()
+	}()
+
+	// 5. 构造命令行参数（使用|分隔路径）
+	pathsStr := strings.Join(allPaths, "|")
+	args := fmt.Sprintf("-task=clean-batch -port=%s -paths=\"%s\"", a.httpPort, pathsStr)
+
+	// 6. 使用ShellExecute启动提升的辅助程序（只启动一次）
+	runtime.LogInfof(a.ctx, "批量清理 %d 个项目，共 %d 个路径", len(items), len(allPaths))
+	err = a.shellExecuteElevated(helperPath, args)
+	if err != nil {
+		return &ElevatedResult{
+			Success: false,
+			Error:   fmt.Sprintf("启动辅助程序失败: %v", err),
+		}, nil
+	}
+
+	runtime.LogInfo(a.ctx, "等待批量清理完成...")
+
+	// 7. 等待结果
+	timeout := time.NewTimer(60 * time.Second) // 批量清理延长超时
+	defer timeout.Stop()
+
+	for {
+		select {
+		case result := <-resultChan:
+			runtime.LogInfo(a.ctx, "批量清理完成")
+
+			// 处理特殊项目（回收站、日志文件）
+			for _, item := range items {
+				if item.ID == "3" || item.ID == "7" {
+					specialResult, _ := a.CleanItemElevated(item)
+					result.CleanedSize += specialResult.CleanedSize
+					result.CleanedCount += specialResult.CleanedCount
+				}
+			}
+
+			return result, nil
+
+		case progress := <-progressChan:
+			timeout.Reset(60 * time.Second)
+			runtime.EventsEmit(a.ctx, "clean-progress", progress)
+
+		case <-timeout.C:
+			return &ElevatedResult{
+				Success: false,
+				Error:   "清理超时（60秒无响应）",
+			}, nil
+		}
+	}
 }
 
 // CleanItemElevated 以管理员权限清理项目

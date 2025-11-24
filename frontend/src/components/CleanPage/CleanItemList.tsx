@@ -65,11 +65,6 @@ export default function CleanItemList({ items, onToggle, onViewDetail, disabled 
             {item.name}
           </span>
 
-          {/* 圆形进度状态 */}
-          <div className="mr-2">
-            <CircularProgress status={item.status} size={18} />
-          </div>
-
           {/* 大小或状态文字 */}
           <span className={`
             text-sm font-medium min-w-[80px] text-right
@@ -78,15 +73,22 @@ export default function CleanItemList({ items, onToggle, onViewDetail, disabled 
             {getStatusText(item)}
           </span>
 
-          {/* 查看详情按钮 */}
-          {onViewDetail && item.status === 'scanned' && (
-            <button
-              onClick={() => onViewDetail(item)}
-              className="text-xs text-primary hover:text-primary-dark transition-colors underline"
-            >
-              查看详情
-            </button>
-          )}
+          {/* 圆形进度状态 */}
+          <div className="ml-3">
+            <CircularProgress status={item.status} size={18} />
+          </div>
+
+          {/* 查看详情按钮 - 固定宽度占位 */}
+          <div className="w-[64px] flex justify-end">
+            {onViewDetail && item.status === 'scanned' && (
+              <button
+                onClick={() => onViewDetail(item)}
+                className="text-xs text-primary hover:text-primary-dark transition-colors underline"
+              >
+                查看详情
+              </button>
+            )}
+          </div>
         </div>
       ))}
     </div>
