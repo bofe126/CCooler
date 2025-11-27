@@ -116,6 +116,9 @@ func (s *OptimizeService) checkPagefile() *SystemOptimizeItem {
 	// 先检查注册表配置（更准确）
 	psScript := `(Get-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management' -Name 'PagingFiles').PagingFiles`
 	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", psScript)
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		HideWindow: true,
+	}
 	output, err := cmd.CombinedOutput()
 
 	// 如果注册表显示已禁用（空值或空数组）
